@@ -2,7 +2,7 @@
 
 **Olanrewaju OS, Ayangbenro AS, Akanmu AO, Bezuidenhout CC, and Babalola OO**
 
-*Manuscript under review — Microbiome (2025)*
+**
 
 ---
 
@@ -143,7 +143,7 @@ All stochastic analyses use random seed 42. R session information including all 
 
 ## Citation
 
-Olanrewaju OS, Ayangbenro AS, Akanmu AO, Bezuidenhout CC, and Babalola OO (2025). Drought-induced dispersal limitation fragments rhizosphere metacommunity assembly while preserving plant growth-promoting functional capacity in maize. Microbiome (under review).
+Olanrewaju OS, Ayangbenro AS, Akanmu AO, Bezuidenhout CC, and Babalola OO (2025). Drought-induced dispersal limitation fragments rhizosphere metacommunity assembly while preserving plant growth-promoting functional capacity in maize.
 
 ---
 
