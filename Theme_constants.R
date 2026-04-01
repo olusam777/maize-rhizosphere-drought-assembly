@@ -1,5 +1,5 @@
 ## =============================================================================
-## theme_constants.r — Global typography, colors and themes
+## Global typography, colors and themes
 ## Source this file at the top of all analysis and assembly scripts
 ## =============================================================================
 
