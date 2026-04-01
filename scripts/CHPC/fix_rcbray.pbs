@@ -1,0 +1,33 @@
+#!/bin/bash
+## ============================================================
+## CHPC PBS SUBMISSION SCRIPT
+##
+## BEFORE SUBMITTING — replace all placeholders:
+##   YOUR_PROJECT_CODE  → your CHPC project allocation code
+##   YOUR_USERNAME      → your CHPC username
+##   YOUR_EMAIL         → your institutional email address
+##   YOUR_QUEUE         → your CHPC queue name (e.g. smp, normal)
+##   YOUR_NCPUS         → number of CPUs to request
+##   YOUR_MEM           → memory to request (e.g. 100gb)
+##   YOUR_WALLTIME      → walltime limit (e.g. 24:00:00)
+##
+## Tested on CHPC Lengau cluster (South Africa)
+## R version used: 4.1.0
+## ============================================================
+#PBS -P YOUR_PROJECT_CODE
+#PBS -N iCAMP_fix
+#PBS -q YOUR_QUEUE
+#PBS -l select=1:ncpus=YOUR_NCPUS:mem=YOUR_MEM
+#PBS -l walltime=YOUR_WALLTIME
+#PBS -o /home/YOUR_USERNAME/lustre/drought_icamp/fix_stdout.log
+#PBS -e /home/YOUR_USERNAME/lustre/drought_icamp/fix_stderr.log
+#PBS -m abe
+#PBS -M YOUR_EMAIL@institution.ac.za
+#PBS -V
+
+module purge 2>/dev/null
+module load R/4.1.0 2>/dev/null
+
+cd /mnt/lustre/users/YOUR_USERNAME/drought_icamp
+
+Rscript fix_rcbray.R 2>&1 | tee icamp_fix_run.log

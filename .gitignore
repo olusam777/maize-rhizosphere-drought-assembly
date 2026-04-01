@@ -1,0 +1,28 @@
+# Large cached R objects - not deposited
+data/*.rds
+data/spiec_easi_*.rds
+data/ps_*.rds
+
+# Figure outputs - reproducible from pipeline
+figures/
+
+# Table outputs - reproducible from pipeline
+tables/
+
+# R session files
+.Rhistory
+.RData
+.Rproj.user/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Temporary files
+*.tmp
+*.log
+
+# Keep these explicitly
+!data/Morphological_characterization.csv
+!data/Morphological_characterization_original.csv
+!scripts/
