@@ -156,7 +156,6 @@ Data files are released under CC BY 4.0.
 
 ## Contact
 
-Corresponding author: Dr. Oluwaseyi Samuel Olanrewaju
-Unit for Environmental Sciences and Management
-North-West University, Potchefstroom, South Africa
-ORCID: [your ORCID here]
+Author: Dr. Oluwaseyi Samuel Olanrewaju
+Olusam777@gmail.com
+
