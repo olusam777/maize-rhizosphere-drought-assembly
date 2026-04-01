@@ -1,5 +1,5 @@
 ## =============================================================================
-## theme_constants.r — Global typography, colors and themes for ISME submission
+## theme_constants.r — Global typography, colors and themes
 ## Source this file at the top of all analysis and assembly scripts
 ## =============================================================================
 
@@ -21,17 +21,17 @@ showtext_auto()
 showtext_opts(dpi = 300)
 FONT_FAMILY <- "Arial"
 
-## ── ISME print dimensions ────────────────────────────────────────────────────
+## ──  print dimensions ────────────────────────────────────────────────────
 ## Single column = 89mm = 3.50 inches
 ## Double column = 183mm = 7.20 inches
 ## Maximum height = 220mm = 8.66 inches
-ISME_SINGLE_W  <- 3.50
-ISME_DOUBLE_W  <- 7.20
-ISME_MAX_H     <- 8.66
+SINGLE_W  <- 3.50
+DOUBLE_W  <- 7.20
+MAX_H     <- 8.66
 
 ## ── Base font size calibration ───────────────────────────────────────────────
-## At 300 DPI, base_size=14 in R renders at approximately 8-9pt at ISME print size
-## This is the minimum acceptable size for ISME figures
+## At 300 DPI, base_size=14 in R renders at approximately 8-9pt at  print size
+## This is the minimum acceptable size for  figures
 BASE_SIZE <- 16
 
 ## ── Global color grammar ─────────────────────────────────────────────────────
@@ -168,9 +168,9 @@ theme_pub <- function(base_size = BASE_SIZE, legend_pos = "bottom") {
 }
 
 ## ── Save figure helper ────────────────────────────────────────────────────────
-## Saves PDF + PNG at 300 DPI using ISME-calibrated dimensions
-## w and h are in inches (use ISME_SINGLE_W, ISME_DOUBLE_W constants)
-save_fig <- function(p, stem, w = ISME_DOUBLE_W, h = 5) {
+## Saves PDF + PNG at 300 DPI using -calibrated dimensions
+## w and h are in inches (use SINGLE_W, DOUBLE_W constants)
+save_fig <- function(p, stem, w = DOUBLE_W, h = 5) {
   ggsave(paste0(stem, ".pdf"), p, width = w, height = h,
          device = cairo_pdf, units = "in")
   ggsave(paste0(stem, ".png"), p, width = w, height = h,
@@ -187,6 +187,6 @@ sig_stars <- function(p) {
 }
 
 cat("theme_constants.r loaded: Arial font, BASE_SIZE=", BASE_SIZE,
-    ", ISME dimensions calibrated\n")
+    ",  dimensions calibrated\n")
 
 ## End of theme_constants.r
