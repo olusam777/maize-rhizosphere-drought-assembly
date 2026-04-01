@@ -1,9 +1,8 @@
 ## ============================================================
 ## DROUGHT RHIZOSPHERE MICROBIOME PIPELINE
-## Olanrewaju et al. (in preparation)
 ##
 ## REPRODUCTION INSTRUCTIONS:
-## 1. Run drought_pipeline_v2.r (full analysis)
+## 1. Run Analysis_pipeline.R (full analysis)
 ##    Estimated runtime: 4–6 hours
 ##    High-memory steps:
 ##      SPIEC-EASI x4  (~2 hr each, ~500 MB RAM each)
@@ -12,9 +11,6 @@
 ##      Random Forest  (~15 min)
 ##    After each SPIEC-EASI run the RDS cache is saved;
 ##    subsequent runs skip the computation.
-## 2. Run figure_assembly.r (figure compilation)
-##    Estimated runtime: 5–10 minutes
-##
 ## CACHING: Expensive computations are cached as RDS files
 ## in data/. Delete the RDS file to force recomputation.
 ## Key caches:
@@ -48,17 +44,11 @@
 ##           keystone taxa
 ## Pillar 8: Phylogenetic signal analysis
 ## ============================================================
-##  drought_pipeline_v2.r  (UPDATED — comprehensive for Microbiome/ISME)
-##  Maize seedling rhizosphere assembly dynamics under progressive drought
-##  8 analytical pillars + publication-quality figures with statistics
-##  Author: Samuel (O.S. Olanrewaju)
-##  Date: March 2026
-## ============================================================
 
 ## ── 0. SETUP ─────────────────────────────────────────────────────────────────
 
 ## Source global theme constants — must be first
-source("theme_constants.r")
+source("Theme_constants.R")
 
 suppressPackageStartupMessages({
   library(phyloseq); library(vegan); library(ape); library(picante)
@@ -87,9 +77,9 @@ CONFIG <- list(
   RF_NTREES = 2000, RF_PERM_ITER = 999
 )
 
-## PAL is now defined in theme_constants.r — loaded via source() above
+## PAL is now defined in Theme_constants.R — loaded via source() above
 ## Keeping local overrides here for any script-specific additions
-## Do not redefine PAL — use the one from theme_constants.r
+## Do not redefine PAL — use the one from Theme_constants.R
 
 dirs <- c("data", "figures/P1_qc", "figures/P1_composition", "figures/P1_alpha",
           "figures/P1_beta", "figures/P2_assembly", "figures/P3_da",
@@ -98,10 +88,10 @@ dirs <- c("data", "figures/P1_qc", "figures/P1_composition", "figures/P1_alpha",
           "figures/supplementary", "tables")
 for (d in dirs) dir.create(d, recursive = TRUE, showWarnings = FALSE)
 
-## save_fig is now defined in theme_constants.r — loaded via source() above
+## save_fig is now defined in Theme_constants.R — loaded via source() above
 ## Do not redefine here
 
-## theme_pub is now defined in theme_constants.r — loaded via source() above
+## theme_pub is now defined in Theme_constants.R — loaded via source() above
 ## Do not redefine here
 
 norm_ids <- function(x) trimws(gsub("\\s+", " ", as.character(x)))
@@ -1099,7 +1089,7 @@ if (icamp_available) {
     cat("and compare assembly fractions. If results are consistent, the finding is robust.\n\n")
   }
   
-  ## iCAMP summary table for manuscript
+  ## iCAMP summary table
   if (exists("proc_df") && "Process" %in% colnames(proc_df)) {
     icamp_summary <- proc_df %>%
       {if("comparison_type" %in% colnames(.)) filter(., grepl("Within", comparison_type)) else .} %>%
@@ -1359,7 +1349,7 @@ if (!is.null(trt_df) && !is.null(geno_df)) {
   dev.off()
 }
 
-## ── 3d. PICRUSt2 functional profiling (expanded — 8 analyses) ────────────
+## ── 3d. PICRUSt2 functional profiling ────────────
 cat("\n── Functional profiling (PICRUSt2) — expanded analyses ──\n\n")
 
 picrust_ko    <- "picrust2/picrust2_output/KO_metagenome_out/pred_metagenome_unstrat.tsv.gz"
@@ -2238,7 +2228,7 @@ if (picrust_available) {
     save_fig(p_pw_traj, "figures/P3_function/functional_temporal_PCoA",
              w=ISME_DOUBLE_W, h=5)
 
-    ## ── Static pathway PCoA (treatment × genotype) — used in FigS8 ───────────
+    ## ── Static pathway PCoA (treatment × genotype) ───────────
     tryCatch({
       set.seed(42)
       perm_pw_static <- adonis2(pw_bray_full ~ treatment + trait + harvest_num,
@@ -3914,7 +3904,6 @@ cat("\nPillar 5 complete.\n\n")
 
 ## =============================================================================
 ##  PILLAR 6: EXTENDED COMPOSITION ANALYSIS
-##  Publication-quality figures styled after Yue et al. 2024 (Microbiome 12:44)
 ## =============================================================================
 
 cat("\n")
@@ -3939,7 +3928,7 @@ dir.create("figures/P1_composition", recursive = TRUE, showWarnings = FALSE)
 ## ─────────────────────────────────────────────────────────────────────────────
 
 ## Phylum palette — 10 vivid + grey "Other"
-## Phylum colors from theme_constants.r
+## Phylum colors from Theme_constants.R
 phylum_colors_vivid <- PAL$phylum
 TOP_PHYLA_COLS      <- PAL$phylum
 
@@ -4143,7 +4132,7 @@ p_phy_sample <- ggplot(phy_long,
 save_fig(p_phy_sample, "figures/P1_composition/phylum_barplot_per_sample",
          w = 14, h = 6)
 
-## ── Fig 6a-ii  Group-averaged treatment × genotype × timepoint ───────────────
+## ── Group-averaged treatment × genotype × timepoint ───────────────
 ## Normalize within each group after averaging to guarantee exact 100%.
 phy_grp <- phy_long %>%
   filter(trait %in% c("Resistance", "Susceptible")) %>%
@@ -4168,7 +4157,7 @@ p_phy_grp <- ggplot(phy_grp,
 save_fig(p_phy_grp, "figures/P1_composition/phylum_barplot_trt_geno_time_FIXED",
          w = 12, h = 8)
 
-## ── Fig 6a-iii  Treatment only ───────────────────────────────────────────────
+## ── Treatment only ───────────────────────────────────────────────
 phy_trt_grp <- phy_long %>%
   group_by(treatment, harvest, harvest_num, Taxon) %>%
   summarise(Abundance = mean(Abundance), .groups = "drop") %>%
@@ -4223,7 +4212,7 @@ gen_sample_order <- gen_long %>%
   pull(Sample)
 gen_long$Sample <- factor(gen_long$Sample, levels = gen_sample_order)
 
-## ── Fig 6b-i  Per-sample ────────────────────────────────────────────────────
+## ──  Per-sample ────────────────────────────────────────────────────
 p_gen_sample <- ggplot(gen_long,
                        aes(x = Sample, y = Abundance, fill = Taxon)) +
   geom_bar(stat = "identity", position = "fill", width = 1, colour = NA) +
@@ -4242,7 +4231,7 @@ p_gen_sample <- ggplot(gen_long,
 save_fig(p_gen_sample, "figures/P1_composition/genus_barplot_per_sample",
          w = 14, h = 6)
 
-## ── Fig 6b-ii  Group average: treatment × genotype (pooled time) ─────────────
+## ──  Group average: treatment × genotype (pooled time) ─────────────
 gen_grp_tg <- gen_long %>%
   filter(trait %in% c("Resistance", "Susceptible")) %>%
   group_by(treatment, trait, Taxon) %>%
@@ -4266,7 +4255,7 @@ p_gen_tg <- ggplot(gen_grp_tg,
 save_fig(p_gen_tg, "figures/P1_composition/genus_barplot_trt_geno",
          w = 10, h = 7)
 
-## ── Fig 6b-iii  Group average: treatment × genotype × timepoint ──────────────
+## ──  Group average: treatment × genotype × timepoint ──────────────
 gen_grp_tt <- gen_long %>%
   filter(trait %in% c("Resistance", "Susceptible")) %>%
   group_by(treatment, trait, harvest, harvest_num, Taxon) %>%
@@ -4303,7 +4292,7 @@ write.csv(gen_tbl, "tables/P1_composition/genus_abundance_by_group.csv", row.nam
 cat("Genus barplots saved.\n\n")
 
 ## ─────────────────────────────────────────────────────────────────────────────
-## 6c. TOP TAXA HORIZONTAL BAR CHARTS BY RANK (Yue et al. Fig. 1e style)
+## 6c. TOP TAXA HORIZONTAL BAR CHARTS BY RANK 
 ##     Wilcoxon test (FDR) + log2 fold change, Drought vs Watered
 ## ─────────────────────────────────────────────────────────────────────────────
 cat("── 6c. Top taxa horizontal bar charts ──\n")
@@ -4930,7 +4919,7 @@ cat("\n── Building LCC + modules + Zi/Pi ──\n")
 ## ─────────────────────────────────────────────────────────────────────────────
 cat("\n── Writing topology tables ──\n")
 
-## Treatment topology (legacy format used by figure_assembly.r Panel E)
+## Treatment topology
 .trt_topo <- data.frame(
   treatment = c("Drought","Watered"),
   nodes     = c(igraph::vcount(.net_drought$graph), igraph::vcount(.net_watered$graph)),
@@ -5185,7 +5174,7 @@ cat("\n── 7E: Network figures ──\n")
 .plot_zipi <- function(kdf, title_str) {
   kdf$Phylum[is.na(kdf$Phylum) | trimws(kdf$Phylum)==""] <- "Unknown"
 
-  ## FIX 1 — vivid named phylum palette; phyla absent from data are silently skipped
+  ## phyla absent from data are silently skipped
   .phy_pal <- c(
     "Acidobacteriota"  = "#2196F3",
     "Actinomycetota"   = "#FF5722",
@@ -5228,11 +5217,11 @@ cat("\n── 7E: Network figures ──\n")
       ggplot2::aes(x=x,y=y,label=label,hjust=hjust,vjust=vjust),
       colour="grey50", size=8/.pt, fontface="italic", inherit.aes=FALSE) +
     ggplot2::facet_wrap(~Network, ncol=2) +
-    ## FIX 1 — vivid palette + FIX 2 — larger legend points for Phylum
+    ## larger legend points for Phylum
     ggplot2::scale_colour_manual(values=pal_cols, name="Phylum", drop=TRUE,
       guide=ggplot2::guide_legend(title="Phylum",
         override.aes=list(size=5), ncol=1)) +
-    ## FIX 2 + FIX 3 — larger point range in plot body + larger legend key sizes
+    ## larger point range in plot body + larger legend key sizes
     ggplot2::scale_size_continuous(name="Degree", range=c(2,8), breaks=c(5,15,30),
       guide=ggplot2::guide_legend(
         override.aes=list(size=c(4,6,9)))) +
@@ -5275,7 +5264,7 @@ cat("\n── 7E: Network figures ──\n")
     names_to="Metric", values_to="Value") %>%
     dplyr::mutate(Metric=dplyr::recode(Metric,
       Avg_degree="Average degree", Modularity="Modularity (Q)"))
-  ## FIX 2 — match manuscript palette from theme_constants.r
+  ## Match manuscript palette from Theme_constants.R
   COLS4 <- c(Drought="#B03A2E", Watered="#1A5276", Resistant="#1E8449", Susceptible="#D35400")
   ggplot2::ggplot(long, ggplot2::aes(Group, Value, fill=Group)) +
     ggplot2::geom_col(alpha=0.85, width=0.65) +
@@ -5290,7 +5279,7 @@ cat("\n── 7E: Network figures ──\n")
       strip.text       = ggplot2::element_text(size=11, face="bold"),
       plot.title       = ggplot2::element_text(size=12, face="bold"),
       plot.margin      = ggplot2::margin(4,4,4,4,"mm")) +
-    ## FIX 1 — remove uninformative y="Value"; facet strips already label each metric
+    ## Remove uninformative y="Value"; facet strips already label each metric
     ggplot2::labs(x=NULL,
       title="Network topology comparison",
       subtitle="SPIEC-EASI overall networks")
@@ -5408,7 +5397,7 @@ cat("\n── Cohesion analysis ──\n")
 ## ║    - figures/P6_networks/keystone_temporal_heatmap*.{png,pdf,svg}        ║
 ## ║    - figures/P6_networks/network_topology_temporal*.{png,pdf,svg}        ║
 ## ║                                                                          ║
-## ║  Do NOT interpret these results quantitatively in the manuscript.        ║
+## ║  Do NOT interpret these results quantitatively.       ║
 ## ╚═══════════════════════════════════════════════════════════════════════════╝
 
 ## ─────────────────────────────────────────────────────────────────────────────
@@ -5952,7 +5941,7 @@ cat("  K results summary:\n")
 print(.k_res[, c("Phylum","K","p","n_taxa","sig")], row.names = FALSE)
 cat("\n")
 
-## ── 8E: Panel A — horizontal K bar chart ─────────────────────────────────────
+## ── 8E: Horizontal K bar chart ─────────────────────────────────────
 cat("── Panel A: Blomberg K by phylum ──\n")
 
 .k_plot <- .k_res[!is.na(.k_res$K), ]
@@ -5988,7 +5977,7 @@ cat(sprintf("  P7_blomberg_k_by_phylum  PDF %.0fKB  PNG %.0fKB  SVG %.0fKB\n",
     file.info(file.path(.P7_DIR,"P7_blomberg_k_by_phylum.png"))$size/1e3,
     file.info(file.path(.P7_DIR,"P7_blomberg_k_by_phylum.svg"))$size/1e3))
 
-## ── 8F: Panel B — LFC violin: Patescibacteria vs all other phyla ─────────────
+## ── 8F: LFC violin: Patescibacteria vs all other phyla ─────────────
 cat("── Panel B: LFC distribution — Patescibacteria vs others ──\n")
 
 ## Build LFC data frame — merge tax annotation with LFC from ANCOMBC2
@@ -6066,19 +6055,6 @@ if (!is.null(ancom_b)) {
   cat("  [P7B] ANCOMBC2_treatment.csv unavailable — skipping LFC violin\n")
 }
 
-## ── 8G: Verify figure_assembly.r paths ───────────────────────────────────────
-cat("\n── Step 7: Verifying figure_assembly.r paths ──\n")
-.fa_lines <- readLines("figure_assembly.r")
-.fa_a     <- grep("P7_blomberg_k_by_phylum", .fa_lines, value = TRUE)
-.fa_b     <- grep("P7_LFC_distribution",     .fa_lines, value = TRUE)
-cat("  Panel A reference:", if (length(.fa_a)) trimws(.fa_a[1]) else "NOT FOUND", "\n")
-cat("  Panel B reference:", if (length(.fa_b)) trimws(.fa_b[1]) else "NOT FOUND", "\n")
-.fa_ok <- length(.fa_a) > 0 && length(.fa_b) > 0 &&
-          grepl("P7_phylogenetic", .fa_a[1]) &&
-          grepl("P7_phylogenetic", .fa_b[1])
-cat(sprintf("  figure_assembly.r paths: %s\n",
-            ifelse(.fa_ok, "CORRECT ✓", "NEED UPDATE")))
-
 ## ── Summary ──────────────────────────────────────────────────────────────────
 cat("\n═══════════════════════════════════════════════════════════════\n")
 cat("  PILLAR 8 COMPLETE — Phylogenetic Signal\n")
@@ -6089,532 +6065,4 @@ cat(sprintf("  Key result: Patescibacteria K=%.3f, p=%.3f\n",
     .k_res$K[.k_res$Phylum == "Patescibacteria"],
     .k_res$p[.k_res$Phylum == "Patescibacteria"]))
 cat("═══════════════════════════════════════════════════════════════\n\n")
-
-## =============================================================================
-##  SUPPLEMENTARY FIGURE ASSEMBLY
-## =============================================================================
-
-cat("═══════════════════════════════════════════════════════════════\n")
-cat("  SUPPLEMENTARY FIGURE ASSEMBLY\n")
-cat("═══════════════════════════════════════════════════════════════\n\n")
-
-tryCatch({
-
-  ## ── Packages ────────────────────────────────────────────────────────────────
-  .sa_pkgs <- c("ggplot2","cowplot","magick","gridExtra","grid","scales","tools","svglite")
-  .sa_need <- .sa_pkgs[!.sa_pkgs %in% rownames(installed.packages())]
-  if (length(.sa_need)) install.packages(.sa_need,
-    repos="https://cloud.r-project.org", quiet=TRUE)
-  invisible(lapply(.sa_pkgs, function(p)
-    suppressPackageStartupMessages(library(p, character.only=TRUE))))
-
-  ## ── Paths ───────────────────────────────────────────────────────────────────
-  .SA_FIG  <- "figures"
-  .SA_TAB  <- "tables"
-  SUPP_OUT <- file.path(.SA_FIG, "manuscript_figures", "supplementary")
-  dir.create(SUPP_OUT, recursive=TRUE, showWarnings=FALSE)
-
-  ## ── Colours ─────────────────────────────────────────────────────────────────
-  .SA_COLS <- c(Drought="#C0392B", Watered="#2980B9",
-                Resistance="#27AE60", Susceptible="#E67E22", Unplanted="#7F8C8D")
-
-  ## ── Helper: ggplot theme ────────────────────────────────────────────────────
-  .sa_theme_isme <- function(bs=9) {
-    theme_bw(base_size=bs) +
-      theme(
-        panel.grid.minor  = element_blank(),
-        panel.grid.major  = element_line(colour="grey93", linewidth=0.25),
-        axis.ticks        = element_line(linewidth=0.36),
-        axis.text         = element_text(size=8),
-        axis.title        = element_text(size=9),
-        strip.background  = element_rect(fill="grey95", colour="grey70"),
-        strip.text        = element_text(size=8, face="bold"),
-        legend.text       = element_text(size=7),
-        legend.title      = element_text(size=8, face="bold"),
-        legend.key.size   = unit(3, "mm"),
-        plot.title        = element_text(size=9, face="bold"),
-        plot.margin       = margin(2, 2, 2, 2, "mm")
-      )
-  }
-
-  ## ── Helper: load panel image (placeholder on failure) ───────────────────────
-  .sa_load_panel <- function(path) {
-    fname <- basename(path)
-    if (!file.exists(path)) {
-      cat("  [MISSING]", path, "\n")
-      return(ggplot() +
-        annotate("text", x=0.5, y=0.5, label=paste0("MISSING:\n", fname),
-                 size=8/.pt, colour="#C0392B", hjust=0.5, vjust=0.5,
-                 fontface="bold") +
-        theme_void() +
-        theme(panel.border=element_rect(colour="#C0392B", fill=NA, linewidth=1)))
-    }
-    tryCatch({
-      img <- magick::image_read(path)
-      magick::image_ggplot(img)
-    }, error=function(e) {
-      cat("  [LOAD ERROR]", fname, "--", conditionMessage(e), "\n")
-      ggplot() +
-        annotate("text", x=0.5, y=0.5, label=paste0("LOAD ERROR:\n", fname),
-                 size=8/.pt, colour="#C0392B", hjust=0.5, vjust=0.5) +
-        theme_void() +
-        theme(panel.border=element_rect(colour="#C0392B", fill=NA, linewidth=1))
-    })
-  }
-
-  ## ── Helper: add bold panel label ────────────────────────────────────────────
-  .sa_add_label <- function(p, lbl, x=0.01, y=0.99) {
-    cowplot::ggdraw(p) +
-      cowplot::draw_label(lbl, x=x, y=y, hjust=0, vjust=1,
-                          fontface="bold", size=11)
-  }
-
-  ## ── Helper: save supplementary figure (PDF + PNG) ───────────────────────────
-  .sa_save_supp <- function(plot, name, w_mm, h_mm) {
-    pp <- file.path(SUPP_OUT, paste0(name, ".pdf"))
-    np <- file.path(SUPP_OUT, paste0(name, ".png"))
-    ggsave(pp, plot, device="pdf", dpi=300, width=w_mm, height=h_mm, units="mm")
-    ggsave(np, plot, device="png", dpi=300, width=w_mm, height=h_mm, units="mm")
-    pi <- file.info(pp); ni <- file.info(np)
-    cat(sprintf("  [SUPP] %-50s  %dmm x %dmm  PDF %.1f KB  PNG %.1f KB\n",
-                name, w_mm, h_mm, pi$size/1e3, ni$size/1e3))
-    invisible(list(pdf=pp, png=np))
-  }
-
-  ## ── Clear existing supplementary folder contents ────────────────────────────
-  ## before reassembling with canonical S-numbers
-  ## This ensures no stale or mis-numbered files remain
-  existing_files <- list.files(SUPP_OUT, full.names=TRUE)
-  if (length(existing_files) > 0) {
-    file.remove(existing_files)
-    cat("Cleared", length(existing_files),
-        "existing files from supplementary folder\n")
-  }
-
-  ## ── FigS_additional_taxa_functional ─────────────────────────────────────────
-  cat("\n=== FigS_additional_taxa_functional: Relocated panels ===\n")
-  sTA <- .sa_load_panel(file.path(.SA_FIG, "P3_function",   "KO_categories_temporal.png"))
-  sTB <- .sa_load_panel(file.path(.SA_FIG, "P3_da",         "heatmap_top40_DA_treatment.png"))
-  sTC <- .sa_load_panel(file.path(.SA_FIG, "P1_composition","top_taxa_Genus_horizontal.png"))
-  figST <- cowplot::plot_grid(
-    .sa_add_label(sTA,"A"), .sa_add_label(sTB,"B"), .sa_add_label(sTC,"C"),
-    ncol=1, align="v", axis="lr"
-  )
-  {
-    w_mm <- 183; h_mm <- 240; w_in <- w_mm/25.4; h_in <- h_mm/25.4
-    base_st <- file.path(SUPP_OUT, "FigS_additional_taxa_functional")
-    ggsave(paste0(base_st,".pdf"),  figST, device="pdf",
-           width=w_mm, height=h_mm, units="mm", dpi=300)
-    ggsave(paste0(base_st,".tiff"), figST, device="tiff",
-           width=w_mm, height=h_mm, units="mm", dpi=300, compression="lzw")
-    ggsave(paste0(base_st,".svg"),  figST, device=svglite::svglite,
-           width=w_in, height=h_in)
-    fi <- lapply(c("pdf","tiff","svg"), function(ext)
-      file.info(paste0(base_st,".",ext))$size)
-    cat(sprintf(
-      "  [SUPP] FigS_additional_taxa_functional  %dx%dmm  PDF %.1f KB  TIFF %.1f KB  SVG %.1f KB\n",
-      w_mm, h_mm, fi[[1]]/1e3, fi[[2]]/1e3, fi[[3]]/1e3))
-  }
-
-  ## ── FigS_network_temporal ───────────────────────────────────────────────────
-  cat("\n=== FigS_network_temporal: Treatment and Genotype temporal networks ===\n")
-  .sa_make_topo_panel <- function(csv_path, group_col, cols_map, metric_col,
-                                   y_label, title_str, breaks_x=c(0,2,3,4,5,6)) {
-    df <- tryCatch(read.csv(csv_path, stringsAsFactors=FALSE), error=function(e) NULL)
-    if (is.null(df)) {
-      return(ggplot() +
-        annotate("text", x=0.5, y=0.5,
-                 label=paste0("MISSING:\n", basename(csv_path)),
-                 size=8/.pt, colour="#C0392B", hjust=0.5, vjust=0.5) +
-        theme_void() +
-        theme(panel.border=element_rect(colour="#C0392B", fill=NA, linewidth=1)))
-    }
-    df$Group <- df[[group_col]]
-    df$Value <- df[[metric_col]]
-    df$Group <- factor(df$Group, levels=names(cols_map))
-    ggplot(df, aes(Day, Value, colour=Group)) +
-      geom_line(linewidth=0.8) + geom_point(size=2.0) +
-      scale_colour_manual(values=cols_map, name=group_col) +
-      scale_x_continuous(breaks=breaks_x) +
-      .sa_theme_isme() +
-      theme(axis.text=element_text(size=8), legend.text=element_text(size=7),
-            legend.title=element_text(size=7), legend.key.size=unit(3,"mm"),
-            plot.title=element_text(size=8, face="bold")) +
-      labs(x="Day", y=y_label, title=title_str)
-  }
-  trt_csv  <- file.path(.SA_TAB, "P6_networks", "network_topology_perday.csv")
-  geno_csv <- file.path(.SA_TAB, "P6_networks", "network_topology_perday_genotype.csv")
-  trt_cols  <- c(Drought  =unname(.SA_COLS["Drought"]),
-                 Watered  =unname(.SA_COLS["Watered"]))
-  geno_cols <- c(Resistant   =unname(.SA_COLS["Resistance"]),
-                 Susceptible =unname(.SA_COLS["Susceptible"]))
-  pA_st <- .sa_make_topo_panel(trt_csv,  "Treatment", trt_cols,  "Modularity",  "Modularity",  "(A) Modularity — Treatment")
-  pB_st <- .sa_make_topo_panel(trt_csv,  "Treatment", trt_cols,  "Avg_degree",  "Avg degree",  "(B) Avg degree — Treatment")
-  pC_st <- .sa_make_topo_panel(trt_csv,  "Treatment", trt_cols,  "Edges",       "Edges",       "(C) Edges — Treatment")
-  pD_st <- .sa_make_topo_panel(trt_csv,  "Treatment", trt_cols,  "N_keystones", "N keystones", "(D) Keystones — Treatment")
-  pE_st <- .sa_make_topo_panel(geno_csv, "Genotype",  geno_cols, "Modularity",  "Modularity",  "(E) Modularity — Genotype")
-  pF_st <- .sa_make_topo_panel(geno_csv, "Genotype",  geno_cols, "Avg_degree",  "Avg degree",  "(F) Avg degree — Genotype")
-  pG_st <- .sa_make_topo_panel(geno_csv, "Genotype",  geno_cols, "Edges",       "Edges",       "(G) Edges — Genotype")
-  pH_st <- .sa_make_topo_panel(geno_csv, "Genotype",  geno_cols, "N_keystones", "N keystones", "(H) Keystones — Genotype")
-  pI_st <- .sa_add_label(
-    .sa_load_panel(file.path(.SA_FIG, "P6_networks",
-                             "keystone_temporal_heatmap.svg")), "I")
-  pJ_st <- .sa_add_label(
-    .sa_load_panel(file.path(.SA_FIG, "P6_networks",
-                             "keystone_temporal_heatmap_genotype.svg")), "J")
-  row1_st <- cowplot::plot_grid(pA_st, pB_st, pC_st, pD_st,
-    ncol=4, align="hv", axis="tblr",
-    labels=c("A","B","C","D"), label_size=11, label_fontface="bold")
-  row2_st <- cowplot::plot_grid(pE_st, pF_st, pG_st, pH_st,
-    ncol=4, align="hv", axis="tblr",
-    labels=c("E","F","G","H"), label_size=11, label_fontface="bold")
-  row3_st <- cowplot::plot_grid(pI_st, pJ_st, ncol=2, align="hv", axis="tblr")
-  figST2  <- cowplot::plot_grid(row1_st, row2_st, row3_st,
-    ncol=1, rel_heights=c(0.22, 0.22, 0.56))
-  {
-    w_mm <- 183; h_mm <- 320; w_in <- w_mm/25.4; h_in <- h_mm/25.4
-    base_st2 <- file.path(SUPP_OUT, "FigS_network_temporal")
-    ggsave(paste0(base_st2,".pdf"),  figST2, device="pdf",
-           width=w_mm, height=h_mm, units="mm", dpi=300)
-    ggsave(paste0(base_st2,".tiff"), figST2, device="tiff",
-           width=w_mm, height=h_mm, units="mm", dpi=300, compression="lzw")
-    ggsave(paste0(base_st2,".svg"),  figST2, device=svglite::svglite,
-           width=w_in, height=h_in)
-    fi2 <- lapply(c("pdf","tiff","svg"), function(ext)
-      file.info(paste0(base_st2,".",ext))$size)
-    cat(sprintf(
-      "  [SUPP] FigS_network_temporal  %dx%dmm  PDF %.1f KB  TIFF %.1f KB  SVG %.1f KB\n",
-      w_mm, h_mm, fi2[[1]]/1e3, fi2[[2]]/1e3, fi2[[3]]/1e3))
-  }
-
-  ## ── S1: Sequencing Quality ──────────────────────────────────────────────────
-  cat("\n=== FIGURE S1: Sequencing Quality ===\n")
-  sA1 <- .sa_load_panel(file.path(.SA_FIG, "P1_qc",    "depth_by_group.png"))
-  sB1 <- .sa_load_panel(file.path(.SA_FIG, "P1_qc",    "rarefaction_curves_treatment.png"))
-  sC1 <- .sa_load_panel(file.path(.SA_FIG, "P1_qc",    "rarefaction_by_harvest.png"))
-  sD1 <- .sa_load_panel(file.path(.SA_FIG, "P1_alpha", "alpha_planted_vs_unplanted.png"))
-  figS1 <- cowplot::plot_grid(
-    .sa_add_label(sA1,"A"), .sa_add_label(sB1,"B"),
-    .sa_add_label(sC1,"C"), .sa_add_label(sD1,"D"),
-    ncol=2, align="hv", axis="tblr")
-  .sa_save_supp(figS1, "FigureS1_sequencing_quality", 183, 160)
-
-  ## ── S2: Extended Taxonomy ───────────────────────────────────────────────────
-  cat("\n=== FIGURE S2: Extended Taxonomy ===\n")
-  sA2 <- .sa_load_panel(file.path(.SA_FIG, "P1_composition",
-                                   "phylum_barplot_per_sample.png"))
-  sB2 <- .sa_load_panel(file.path(.SA_FIG, "P1_composition",
-                                   "phylum_barplot_trt_geno_time_FIXED.png"))
-  sC2 <- .sa_load_panel(file.path(.SA_FIG, "P1_composition",
-                                   "genus_barplot_trt_geno_time.png"))
-  sD2 <- .sa_load_panel(file.path(.SA_FIG, "P1_composition",
-                                   "venn_ASV_4set_trt_geno.png"))
-  figS2 <- cowplot::plot_grid(
-    .sa_add_label(sA2,"A"), .sa_add_label(sB2,"B"),
-    .sa_add_label(sC2,"C"), .sa_add_label(sD2,"D"),
-    ncol=2, align="hv", axis="tblr")
-  .sa_save_supp(figS2, "FigureS2_extended_taxonomy", 183, 250)
-
-  ## ── S3: Extended Beta Diversity ─────────────────────────────────────────────
-  cat("\n=== FIGURE S3: Extended Beta Diversity ===\n")
-  sA3 <- .sa_load_panel(file.path(.SA_FIG, "P0_community",  "NMDS_planted_unplanted.png"))
-  sB3 <- .sa_load_panel(file.path(.SA_FIG, "P0_community",  "NMDS_by_time.png"))
-  sC3 <- .sa_load_panel("Manuscript_ISME/supplementary/sensitivity_distance_metrics.png")
-  sD3 <- .sa_load_panel("Manuscript_ISME/supplementary/rarefaction_sensitivity.png")
-  figS3 <- cowplot::plot_grid(
-    .sa_add_label(sA3,"A"), .sa_add_label(sB3,"B"),
-    .sa_add_label(sC3,"C"), .sa_add_label(sD3,"D"),
-    ncol=2, align="hv", axis="tblr")
-  .sa_save_supp(figS3, "FigureS3_extended_betadiversity", 183, 160)
-
-  ## ── S4: Alpha Diversity Statistics ──────────────────────────────────────────
-  cat("\n=== FIGURE S4: Alpha Diversity Statistics ===\n")
-  sA4 <- .sa_load_panel(file.path(.SA_FIG, "P1_alpha",
-                                   "alpha_boxplot_time_genotype.png"))
-  sB4 <- .sa_load_panel(file.path(.SA_FIG, "P1_alpha", "alpha_boxplot_genotype.png"))
-  figS4 <- cowplot::plot_grid(.sa_add_label(sA4,"A"), .sa_add_label(sB4,"B"),
-                               ncol=2, align="hv", axis="tblr")
-  .sa_save_supp(figS4, "FigureS4_alpha_statistics", 183, 120)
-
-  ## ── S5: Extended DA ─────────────────────────────────────────────────────────
-  cat("\n=== FIGURE S5: Extended Differential Abundance ===\n")
-  sA5 <- .sa_load_panel(file.path(.SA_FIG, "P1_composition",
-                                   "top_taxa_Phylum_horizontal.png"))
-  sB5 <- .sa_load_panel(file.path(.SA_FIG, "P1_composition",
-                                   "top_taxa_Class_horizontal.png"))
-  sC5 <- .sa_load_panel(file.path(.SA_FIG, "P1_composition",
-                                   "top_taxa_Family_horizontal.png"))
-  sD5 <- .sa_load_panel(file.path(.SA_FIG, "P1_composition",
-                                   "top_taxa_Genus_horizontal.png"))
-  figS5 <- cowplot::plot_grid(
-    .sa_add_label(sA5,"A"), .sa_add_label(sB5,"B"),
-    .sa_add_label(sC5,"C"), .sa_add_label(sD5,"D"),
-    ncol=2, align="hv", axis="tblr")
-  .sa_save_supp(figS5, "FigureS5_extended_DA", 183, 250)
-
-  ## ── S6: Extended Assembly ───────────────────────────────────────────────────
-  cat("\n=== FIGURE S6: Extended Assembly ===\n")
-  sA6 <- .sa_load_panel(file.path(.SA_FIG, "P1_iCAMP",
-                                   "P1_iCAMP_assembly_by_timepoint.png"))
-  icamp_tbl <- data.frame(
-    Statistic = c("Input ASVs","ASVs retained","Reads retained (%)",
-                  "Pairwise comparisons","Method"),
-    Value     = c("7,868","7,148","90.8%","2,556","iCAMP (bNTI + RC-Bray)")
-  )
-  sB6 <- cowplot::ggdraw() +
-    cowplot::draw_label("iCAMP Filtering Report", x=0.5, y=0.97,
-                        hjust=0.5, vjust=1, fontface="bold", size=9) +
-    cowplot::draw_grob(
-      gridExtra::tableGrob(icamp_tbl, rows=NULL,
-        theme=gridExtra::ttheme_minimal(base_size=8,
-          core   =list(fg_params=list(fontsize=8)),
-          colhead=list(fg_params=list(fontsize=8, fontface="bold")))),
-      x=0.05, y=0.05, width=0.9, height=0.85)
-  sC6 <- .sa_load_panel(file.path(.SA_FIG, "P1_composition",
-                                   "venn_ASV_treatment.png"))
-  sD6 <- .sa_load_panel(file.path(.SA_FIG, "P1_composition",
-                                   "core_phylum_composition.png"))
-  top_S6 <- cowplot::plot_grid(.sa_add_label(sA6,"A"), sB6,
-                                ncol=2, align="hv", axis="tblr")
-  bot_S6 <- cowplot::plot_grid(.sa_add_label(sC6,"C"), .sa_add_label(sD6,"D"),
-                                ncol=2, align="hv", axis="tblr")
-  figS6  <- cowplot::plot_grid(top_S6, bot_S6, nrow=2)
-  .sa_save_supp(figS6, "FigureS6_extended_assembly", 183, 180)
-
-  ## ── S7: Phylogenetic Signal ──────────────────────────────────────────────────
-  cat("\n=== FIGURE S7: Phylogenetic Signal ===\n")
-  sA7 <- .sa_load_panel(file.path(.SA_FIG, "P7_phylogenetic",
-                                   "P7_blomberg_k_by_phylum.png"))
-  sB7 <- .sa_load_panel(file.path(.SA_FIG, "P7_phylogenetic",
-                                   "P7_LFC_distribution.png"))
-  figS7 <- cowplot::plot_grid(.sa_add_label(sA7,"A"), .sa_add_label(sB7,"B"),
-                               ncol=2, align="hv", axis="tblr")
-  .sa_save_supp(figS7, "FigureS7_phylogenetic_signal", 183, 100)
-
-  ## ── S8: Extended Functional ──────────────────────────────────────────────────
-  cat("\n=== FIGURE S8: Extended Functional Analysis ===\n")
-  sA8 <- .sa_load_panel(file.path(.SA_FIG, "P3_function",
-                                   "PCoA_functional_pathway.png"))
-  sB8 <- .sa_load_panel(file.path(.SA_FIG, "P3_function",    "NSTI_distribution.png"))
-  sC8 <- .sa_load_panel(file.path(.SA_FIG, "P1_composition",
-                                   "core_phylum_composition.png"))
-  sD8 <- .sa_load_panel(file.path(.SA_FIG, "P1_composition", "venn_ASV_treatment.png"))
-  figS8 <- cowplot::plot_grid(
-    .sa_add_label(sA8,"A"), .sa_add_label(sB8,"B"),
-    .sa_add_label(sC8,"C"), .sa_add_label(sD8,"D"),
-    ncol=2, align="hv", axis="tblr")
-  .sa_save_supp(figS8, "FigureS8_extended_functional", 183, 160)
-
-  ## ── S9: Functional Alpha (three-factor) ─────────────────────────────────────
-  cat("\n=== FIGURE S9: Functional Alpha Diversity (three-factor) ===\n")
-  sA9 <- .sa_load_panel(file.path(.SA_FIG, "P3_function",
-                                   "functional_alpha_diversity_threefactor.png"))
-  figS9 <- cowplot::plot_grid(.sa_add_label(sA9,"A"), ncol=1)
-  .sa_save_supp(figS9, "FigureS9_functional_alpha", 183, 120)
-
-  ## ── S_network_topology: Network Topology Bar Chart (assembled before copy block)
-  cat("\n=== FIGURE S_network_topology: Network Topology Bar Chart ===\n")
-  sA_topo   <- .sa_load_panel(file.path(.SA_FIG, "P6_networks",
-                                         "network_topology_comparison.png"))
-  figS_topo <- cowplot::plot_grid(.sa_add_label(sA_topo,"A"), ncol=1)
-  .sa_save_supp(figS_topo, "FigureS_network_topology", 120, 160)
-  {
-    .tiff_topo <- file.path(SUPP_OUT, "FigureS_network_topology.tiff")
-    ggsave(.tiff_topo, figS_topo, device="tiff", dpi=300,
-           width=120, height=160, units="mm", compression="lzw")
-    cat(sprintf("  [SUPP] FigureS_network_topology.tiff  %.1f KB\n",
-                file.info(.tiff_topo)$size/1e3))
-  }
-
-  ## ── copy_supp: file-copy helper ──────────────────────────────────────────────
-  ## Copies an existing figure to SUPP_OUT with canonical FigureS{nn}_{desc}.{ext}
-  copy_supp <- function(src, n, desc) {
-    if (!file.exists(src)) {
-      cat(sprintf("  SOURCE MISSING — S%02d: %s\n", n, src))
-      return(invisible(NULL))
-    }
-    ext  <- tools::file_ext(src)
-    dest <- file.path(SUPP_OUT, sprintf("FigureS%02d_%s.%s", n, desc, ext))
-    file.copy(src, dest, overwrite=TRUE)
-    sz   <- file.info(dest)$size / 1e3
-    cat(sprintf("  S%02d: %-55s  %.1f KB\n", n, basename(dest), sz))
-    invisible(dest)
-  }
-
-  cat("\n=== FIGURES S1-S15: Essential supplementary panels ===\n")
-
-  ## S1 — Sequencing quality
-  copy_supp("figures/manuscript_figures/supplementary/FigureS1_sequencing_quality.pdf",
-            1, "sequencing_quality")
-
-  ## S2 — Rarefaction sensitivity
-  copy_supp("Manuscript_ISME/supplementary/rarefaction_sensitivity.pdf",
-            2, "rarefaction_sensitivity")
-
-  ## S3 — Alpha diversity statistics
-  copy_supp("figures/manuscript_figures/supplementary/FigureS4_alpha_statistics.pdf",
-            3, "alpha_diversity_statistics")
-
-  ## S4 — Distance metric sensitivity
-  copy_supp("Manuscript_ISME/supplementary/sensitivity_distance_metrics.pdf",
-            4, "sensitivity_distance_metrics")
-
-  ## S5 — Extended beta-diversity
-  copy_supp("figures/manuscript_figures/supplementary/FigureS3_extended_betadiversity.pdf",
-            5, "extended_betadiversity")
-
-  ## S6 — Extended differential abundance
-  copy_supp("figures/manuscript_figures/supplementary/FigureS5_extended_DA.pdf",
-            6, "extended_differential_abundance")
-
-  ## S7 — Extended assembly mechanisms
-  copy_supp("figures/manuscript_figures/supplementary/FigureS6_extended_assembly.pdf",
-            7, "extended_assembly_mechanisms")
-
-  ## S8 — Phylogenetic signal
-  copy_supp("figures/manuscript_figures/supplementary/FigureS7_phylogenetic_signal.pdf",
-            8, "phylogenetic_signal")
-
-  ## S9 — Network architecture (main Fig 5)
-  copy_supp("figures/manuscript_figures/main/Figure5_networks_functional.pdf",
-            9, "network_architecture")
-
-  ## S10 — Network topology metrics
-  copy_supp("figures/manuscript_figures/supplementary/FigureS_network_topology.pdf",
-            10, "network_topology_metrics")
-
-  ## S11 — Network temporal dynamics
-  copy_supp("figures/manuscript_figures/supplementary/FigS_network_temporal.pdf",
-            11, "network_temporal_dynamics")
-
-  ## S12 — Functional alpha diversity
-  copy_supp("figures/manuscript_figures/supplementary/FigureS9_functional_alpha.pdf",
-            12, "functional_alpha")
-
-  ## S13 — Functional redundancy Mantel
-  copy_supp("figures/P3_function/functional_redundancy_mantel.png",
-            13, "functional_redundancy_mantel")
-
-  ## S14 — Extended functional analysis
-  copy_supp("figures/manuscript_figures/supplementary/FigureS8_extended_functional.pdf",
-            14, "extended_functional_analysis")
-
-  ## S15 — LinkET taxa–morphology
-  copy_supp("figures/P4_phenotype/linkET_taxa_morphology.png",
-            15, "linkET_taxon_morphology")
-
-  ## S16 — Plant photographs (manual Inkscape assembly required)
-  cat("  S16 -> FigureS16_plant_photographs [MANUAL INKSCAPE ASSEMBLY PENDING]\n")
-
-  n_copied <- length(list.files(SUPP_OUT, pattern="^FigureS[0-9]{2}_.*\\.(pdf|png)$"))
-  cat(sprintf("\nSupplementary assembly complete: %d/15 canonical files (S16 pending manual assembly)\n",
-              n_copied))
-  cat(sprintf("Output: %s\n", SUPP_OUT))
-  cat("═══════════════════════════════════════════════════════════════\n\n")
-
-}, error=function(e) {
-  cat("  Supplementary assembly error:", conditionMessage(e), "\n")
-})
-
-## =============================================================================
-##  SUPPLEMENTARY TABLE ASSEMBLY
-## =============================================================================
-
-tryCatch({
-
-  supp_tab_dir <- file.path(BASE_DIR, "tables", "manuscript_supplementary")
-  dir.create(supp_tab_dir, recursive=TRUE, showWarnings=FALSE)
-
-  ## Clear existing tables
-  old_tabs <- list.files(supp_tab_dir, pattern="\\.csv$", full.names=TRUE)
-  if (length(old_tabs) > 0) {
-    invisible(file.remove(old_tabs))
-    cat(sprintf("  Cleared %d existing supplementary tables\n", length(old_tabs)))
-  }
-
-  copy_tab <- function(src, n, desc) {
-    src_full <- file.path(BASE_DIR, src)
-    dest <- file.path(supp_tab_dir, sprintf("TableS%02d_%s.csv", n, desc))
-    if (file.exists(src_full)) {
-      file.copy(src_full, dest, overwrite=TRUE)
-      cat(sprintf("  ST%02d: %s\n", n, desc))
-    } else {
-      cat(sprintf("  TABLE MISSING — ST%02d: %s [%s]\n", n, desc, src))
-    }
-  }
-
-  copy_tab("tables/P1_beta/PERMANOVA_main.csv",                  1,  "PERMANOVA_main")
-  copy_tab("tables/P1_beta/PERMANOVA_per_day.csv",               2,  "PERMANOVA_per_day")
-  copy_tab("tables/P1_beta/variance_partitioning.csv",           3,  "variance_partitioning")
-  copy_tab("tables/P3_da/ANCOMBC2_treatment.csv",                4,  "ANCOMBC2_treatment")
-  copy_tab("tables/P3_da/ANCOMBC2_genotype.csv",                 5,  "ANCOMBC2_genotype")
-  copy_tab("tables/P2_assembly/iCAMP_summary_for_manuscript.csv",6,  "iCAMP_summary")
-  copy_tab("tables/P2_assembly/iCAMP_process_tests_treatment.csv",7, "iCAMP_process_tests")
-  copy_tab("tables/P6_networks/P6_network_topology.csv",         8,  "network_topology")
-  copy_tab("tables/P6_networks/network_keystone_taxa.csv",       9,  "network_keystone_taxa")
-  copy_tab("tables/P3_function/faprotax_guild_stats.csv",        10, "faprotax_guild_stats")
-  copy_tab("tables/P3_function/pgp_ko_stats.csv",                11, "pgp_ko_stats")
-  copy_tab("tables/P4_phenotype/morphology_global_stats.csv",    12, "morphology_global_stats")
-  copy_tab("tables/P4_phenotype/morphology_lme_results.csv",     13, "morphology_lme_results")
-  copy_tab("tables/P4_phenotype/mantel_tests.csv",               14, "mantel_tests")
-  copy_tab("tables/P5_prediction/RF_performance.csv",            15, "RF_performance")
-  copy_tab("tables/P5_prediction/RF_feature_importance.csv",     16, "RF_feature_importance")
-
-  tabs_out <- list.files(supp_tab_dir, pattern="\\.csv$")
-  cat(sprintf("  Supplementary Table Assembly: %d tables copied to %s\n",
-              length(tabs_out), supp_tab_dir))
-
-}, error=function(e) {
-  cat("  Supplementary table assembly error:", conditionMessage(e), "\n")
-})
-
-## =============================================================================
-##  FINAL SUMMARY
-## =============================================================================
-
-cat("═══════════════════════════════════════════════════════════════\n")
-cat("  PIPELINE COMPLETE\n")
-cat("═══════════════════════════════════════════════════════════════\n\n")
-
-summary_df <- data.frame(
-  Finding = c(
-    "Samples (filtered)", "ASVs (filtered)", "Rarefaction depth",
-    "PERMANOVA: Treatment R²", "PERMANOVA: Genotype R²", "PERMANOVA: Time R²",
-    "PERMANOVA: Condition R²", "Residual variance (%)",
-    "Mean turnover proportion",
-    "DA ASVs (treatment)", "DA ASVs (genotype)",
-    "Assembly: Deterministic %", "Assembly: Stochastic %",
-    "Assembly: Dispersal Limitation (Drought)", "Assembly: Homogenizing Dispersal (Drought)",
-    "Functional R² (treatment)", "Functional PERMANOVA p",
-    "Procrustes r (p-value)", "Mantel r (partial)",
-    "iCAMP chi-squared p",
-    "RF AUC (full — primary)", "RF AUC (top30 — exploratory)", "RF perm p (full)"
-  ),
-  Value = c(
-    nsamples(ps), ntaxa(ps), CONFIG$RAREFACTION_DEPTH,
-    round(perm_main$R2[1],4), round(perm_main$R2[2],4), round(perm_main$R2[3],4),
-    round(perm_cond$R2[1],4), round(residual_pct,1),
-    round(mean(beta_summary$mean_turn),3),
-    ifelse(exists("n_dr"), n_dr+n_wa, NA), ifelse(exists("n_res"), n_res+n_sus, NA),
-    ifelse(exists("deterministic_pct"), round(deterministic_pct*100,1), NA),
-    ifelse(exists("stochastic_pct"), round(stochastic_pct*100,1), NA),
-    ifelse(icamp_available, "29.5%", NA), ifelse(icamp_available, "7.0%", NA),
-    ifelse(exists("perm_func"), round(perm_func$R2[1],4), NA),
-    ifelse(exists("perm_func"), round(perm_func$`Pr(>F)`[1],4), NA),
-    ifelse(exists("procr"), sprintf("%.3f (p=%.3f %s)", procr_r, procr$signif,
-                                     ifelse(procr$signif<0.05,"*","NS")), NA),
-    ifelse(exists("mantel_p"), round(mantel_p$statistic,3), NA),
-    ifelse(exists("chi_test"), sprintf("%.2e", chi_test$p.value), NA),
-    round(auc_full,3), round(auc_red,3), round(perm_p,4)
-  ), stringsAsFactors=FALSE
-)
-write.csv(summary_df, "tables/P1_composition/pipeline_summary.csv", row.names=FALSE)
-cat("Summary:\n"); print(summary_df, right=FALSE)
-
-## List all outputs
-cat("\n\nOutput files:\n")
-cat("Figures:", length(list.files("figures", recursive=TRUE, pattern="\\.(pdf|png)$")), "files\n")
-cat("Tables:", length(list.files("tables", pattern="\\.csv$", recursive=TRUE)), "files\n")
-
-writeLines(capture.output(sessionInfo()), "tables/P1_composition/sessionInfo.txt")
 cat("\n═══ Pipeline finished ═══\n")
