@@ -103,8 +103,8 @@ Before submitting PBS scripts, replace all placeholders in the .pbs files:
 |-------------|-------------|
 | YOUR_PROJECT_CODE | Your HPC project allocation code |
 | YOUR_USERNAME | Your HPC username |
-| YOUR_EMAIL@institution.ac.za | Your institutional email |
-| YOUR_QUEUE | Your HPC queue name |
+| YOUR_EMAIL | Your email |
+| YOUR_QUEUE | Your HPC queue |
 | YOUR_NCPUS | Number of CPUs to request |
 | YOUR_MEM | Memory to request (e.g. 100gb) |
 | YOUR_WALLTIME | Walltime limit (e.g. 24:00:00) |
