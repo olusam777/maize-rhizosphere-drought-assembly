@@ -1,7 +1,6 @@
 ## =============================================================================
-##  run_icamp.R  (v2 — fixed for large ASV counts)
+##  run_icamp.R 
 ##  iCAMP βNTI + RC-bray on actual drought dataset
-##  Run on CHPC Lengau via PBS
 ## =============================================================================
 
 cat("=== Loading packages ===\n")
@@ -37,7 +36,7 @@ cat("Total ASVs in planted samples:", ncol(comm_full), "\n")
 ## 140K ASVs creates a 140K x 140K distance matrix (~148 GB) which overflows
 ## R integer limit. We filter to prevalent ASVs — standard practice for
 ## betaNTI. Rare singletons are phylogenetically uninformative for null
-## models. Most published iCAMP studies use 1,000-10,000 ASVs.
+## models.
 
 cat("\n=== Filtering ASVs for iCAMP ===\n")
 
