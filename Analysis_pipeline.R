@@ -1,54 +1,10 @@
 ## ============================================================
-## DROUGHT RHIZOSPHERE MICROBIOME PIPELINE
-##
-## REPRODUCTION INSTRUCTIONS:
-## 1. Run Analysis_pipeline.R (full analysis)
-##    Estimated runtime: 4–6 hours
-##    High-memory steps:
-##      SPIEC-EASI x4  (~2 hr each, ~500 MB RAM each)
-##      iCAMP          (~30 min)
-##      ANCOM-BC2 x5   (~10 min each)
-##      Random Forest  (~15 min)
-##    After each SPIEC-EASI run the RDS cache is saved;
-##    subsequent runs skip the computation.
-## CACHING: Expensive computations are cached as RDS files
-## in data/. Delete the RDS file to force recomputation.
-## Key caches:
-##   data/spiec_easi_drought.rds    (~500 MB)
-##   data/spiec_easi_watered.rds    (~500 MB)
-##   data/spiec_easi_resistant.rds  (~500 MB)
-##   data/spiec_easi_susceptible.rds (~500 MB)
-##   data/ps_genus_cached.rds       (genus-agglomerated phyloseq)
-##
-## REQUIREMENTS:
-##   R >= 4.3.0
-##   Bioconductor packages: phyloseq, DESeq2, ANCOMBC, ALDEx2
-##   CRAN packages: vegan, ape, ranger, igraph, ggraph, ggrepel,
-##     RColorBrewer, svglite, dplyr, tidyr, tibble, patchwork,
-##     Matrix, scales
-##   GitHub packages:
-##     remotes::install_github("zdk123/SpiecEasi")
-##   Run sessionInfo() after loading to check versions.
-##
-## PIPELINE STRUCTURE:
-## Pillar 1: Data import, filtering, QC
-## Pillar 2: Assembly mechanism dynamics (iCAMP)
-## Pillar 3: Differential abundance and
-##           functional profiling
-## Pillar 4: Plant phenotype-microbiome
-##           integration
-## Pillar 5: Predictability and intervention
-##           targets
-## Pillar 6: Extended composition analysis
-## Pillar 7: Co-occurrence networks and
-##           keystone taxa
-## Pillar 8: Phylogenetic signal analysis
-## ============================================================
+## MAIZE DROUGHT RHIZOSPHERE MICROBIOME PIPELINE
 
 ## ── 0. SETUP ─────────────────────────────────────────────────────────────────
 
 ## Source global theme constants — must be first
-source("Theme_constants.R")
+source("theme_constants.r")
 
 suppressPackageStartupMessages({
   library(phyloseq); library(vegan); library(ape); library(picante)
@@ -77,21 +33,21 @@ CONFIG <- list(
   RF_NTREES = 2000, RF_PERM_ITER = 999
 )
 
-## PAL is now defined in Theme_constants.R — loaded via source() above
+## PAL is now defined in theme_constants.r — loaded via source() above
 ## Keeping local overrides here for any script-specific additions
-## Do not redefine PAL — use the one from Theme_constants.R
+## Do not redefine PAL — use the one from theme_constants.r
 
 dirs <- c("data", "figures/P1_qc", "figures/P1_composition", "figures/P1_alpha",
           "figures/P1_beta", "figures/P2_assembly", "figures/P3_da",
           "figures/P3_function", "figures/P4_phenotype", "figures/P5_prediction",
           "figures/P6_networks", "figures/P7_phylogenetic",
-          "figures/supplementary", "tables")
+          "tables")
 for (d in dirs) dir.create(d, recursive = TRUE, showWarnings = FALSE)
 
-## save_fig is now defined in Theme_constants.R — loaded via source() above
+## save_fig is defined in theme_constants.r — loaded via source() above
 ## Do not redefine here
 
-## theme_pub is now defined in Theme_constants.R — loaded via source() above
+## theme_pub is defined in theme_constants.r — loaded via source() above
 ## Do not redefine here
 
 norm_ids <- function(x) trimws(gsub("\\s+", " ", as.character(x)))
@@ -120,7 +76,7 @@ meta <- meta %>% mutate(
   harvest_fac = factor(as.numeric(gsub("[^0-9]","",harvest))),
   treatment = factor(treatment, levels = c("Watered","Drought")),
   condition = factor(condition, levels = c("Unplanted","Planted")),
-  trait = factor(trait, levels = c("Unplanted","Susceptible","Resistance")),
+  trait = factor(trait, levels = c("Unplanted","Susceptible","Resistant")),
   reps = factor(reps), trt_geno = interaction(treatment, trait, drop=TRUE, sep="_")
 )
 cat("Metadata:", nrow(meta), "samples\n")
@@ -129,11 +85,10 @@ cat("Metadata:", nrow(meta), "samples\n")
 morph <- read.csv("Morphological_characterization.csv", sep=";", header=TRUE,
                   check.names=FALSE, stringsAsFactors=FALSE)
 names(morph) <- trimws(names(morph))
-morph$trait[morph$trait == "Resistant"] <- "Resistance"
 morph$harvest_num <- as.numeric(morph$harvest)
 morph <- morph %>% mutate(
   treatment = factor(treatment, levels=c("Watered","Drought")),
-  trait = factor(trait, levels=c("Susceptible","Resistance")), reps = factor(reps),
+  trait = factor(trait, levels=c("Susceptible","Resistant")), reps = factor(reps),
   sample_key = paste(treatment, harvest_num, trait, reps, sep="_")
 )
 cat("Morphology:", nrow(morph), "observations\n")
@@ -231,7 +186,7 @@ filter_log <- rbind(filter_log, data.frame(step="depth_filter", n_samples=nsampl
 
 ## 6. Prevalence filter — CRITICAL for reducing noise ASVs
 ## Keep ASVs present in >= 5% of samples (at least ~5 samples out of 108)
-## This is standard practice; rare singletons inflate ordinations and variance partitioning
+## Rare singletons inflate ordinations and variance partitioning
 prev_threshold <- ceiling(CONFIG$PREV_FILTER * nsamples(ps))
 asv_prev <- apply(otu_table(ps), 1, function(x) sum(x > 0))
 if (!taxa_are_rows(ps)) asv_prev <- apply(otu_table(ps), 2, function(x) sum(x > 0))
@@ -269,12 +224,12 @@ cat("Planted:", nsamples(ps_planted), "| Rarefied:", nsamples(ps_rare), "at", CO
 qc_df <- data.frame(Sample=sample_names(ps), Reads=as.numeric(sample_sums(ps)), sample_data(ps))
 
 ## Depth boxplots by group
-p_depth <- ggplot(qc_df, aes(harvest, Reads, fill=treatment)) +
+p_depth <- ggplot(qc_df, aes(harvest_num, Reads, fill=treatment)) +
   geom_boxplot(outlier.shape=NA, alpha=0.8) + geom_jitter(width=0.15, size=1, alpha=0.5) +
   facet_wrap(~condition) + scale_fill_manual(values=PAL$treatment) +
+  scale_x_continuous(breaks=c(0,2,3,4,5,6)) +
   scale_y_continuous(labels=scales::comma) + theme_pub() +
-  theme(axis.text.x=element_text(angle=45, hjust=1)) +
-  labs(x="Harvest", y="Sequencing depth", fill="Treatment")
+  labs(x="Day", y="Sequencing depth", fill="Treatment")
 save_fig(p_depth, "figures/P1_qc/depth_by_group", w=12, h=6)
 
 ## Rarefaction curves
@@ -319,7 +274,7 @@ p_sens <- ggplot(sens_df, aes(Unrarefied, Rarefied)) + geom_point(alpha=0.5) +
   geom_smooth(method="lm", se=FALSE) + theme_pub() +
   labs(x="Observed (unrarefied)", y="Observed (rarefied)",
        title="Rarefaction sensitivity", subtitle=sprintf("Spearman rho = %.3f, p = %.2e", cor_r$estimate, cor_r$p.value))
-save_fig(p_sens, "figures/supplementary/rarefaction_sensitivity", w=ISME_SINGLE_W, h=6)
+save_fig(p_sens, "figures/P1_qc/rarefaction_sensitivity", w=ISME_SINGLE_W, h=6)
 cat("Rarefaction curves done.\n\n")
 ## ── 1j. Classical alpha diversity boxplots with statistics ─────────────────
 cat("── Alpha diversity analysis (rarefied) ──\n\n")
@@ -338,12 +293,12 @@ alpha_long <- alpha_df %>% pivot_longer(c(Observed, Shannon, PD), names_to="metr
 write.csv(alpha_df, "tables/P1_alpha/alpha_diversity_rarefied.csv", row.names=FALSE)
 
 ## Classical boxplots: by treatment (with p-values)
-trt_stats <- alpha_long %>% filter(trait %in% c("Resistance","Susceptible")) %>%
+trt_stats <- alpha_long %>% filter(trait %in% c("Resistant","Susceptible")) %>%
   group_by(metric) %>%
   summarise(p = wilcox.test(value ~ treatment)$p.value, .groups="drop") %>%
   mutate(label = paste0("p = ", format(p, digits=3), " ", sig_stars(p)))
 
-p_alpha_trt <- ggplot(alpha_long %>% filter(trait %in% c("Resistance","Susceptible")),
+p_alpha_trt <- ggplot(alpha_long %>% filter(trait %in% c("Resistant","Susceptible")),
                       aes(treatment, value, fill=treatment)) +
   geom_boxplot(outlier.shape=NA, alpha=0.8) +
   geom_jitter(width=0.15, size=1.5, alpha=0.5) +
@@ -369,11 +324,11 @@ cliff_delta <- function(x, y) {
 }
 
 alpha_effect_sizes <- do.call(rbind, lapply(
-  unique((alpha_long %>% filter(trait %in% c("Resistance","Susceptible")))$metric),
+  unique((alpha_long %>% filter(trait %in% c("Resistant","Susceptible")))$metric),
   function(m) {
-    d <- alpha_long %>% filter(trait %in% c("Resistance","Susceptible"), metric == m)
+    d <- alpha_long %>% filter(trait %in% c("Resistant","Susceptible"), metric == m)
     trt_d <- cliff_delta(d$value[d$treatment=="Drought"], d$value[d$treatment=="Watered"])
-    geno_d <- cliff_delta(d$value[d$trait=="Resistance"], d$value[d$trait=="Susceptible"])
+    geno_d <- cliff_delta(d$value[d$trait=="Resistant"], d$value[d$trait=="Susceptible"])
     data.frame(metric = m,
       Cliff_delta_treatment = as.numeric(trt_d["delta"]),
       Effect_treatment = as.character(trt_d["interpretation"]),
@@ -384,12 +339,12 @@ alpha_effect_sizes <- do.call(rbind, lapply(
 ))
 write.csv(alpha_effect_sizes, "tables/P1_alpha/alpha_effect_sizes.csv", row.names=FALSE)
 cat("Alpha effect sizes (Cliff's delta):\n"); print(alpha_effect_sizes); cat("\n")
-geno_stats <- alpha_long %>% filter(trait %in% c("Resistance","Susceptible")) %>%
+geno_stats <- alpha_long %>% filter(trait %in% c("Resistant","Susceptible")) %>%
   group_by(metric) %>%
   summarise(p = wilcox.test(value ~ trait)$p.value, .groups="drop") %>%
   mutate(label = paste0("p = ", format(p, digits=3), " ", sig_stars(p)))
 
-p_alpha_geno <- ggplot(alpha_long %>% filter(trait %in% c("Resistance","Susceptible")),
+p_alpha_geno <- ggplot(alpha_long %>% filter(trait %in% c("Resistant","Susceptible")),
                        aes(trait, value, fill=trait)) +
   geom_boxplot(outlier.shape=NA, alpha=0.8) +
   geom_jitter(width=0.15, size=1.5, alpha=0.5) +
@@ -402,20 +357,21 @@ p_alpha_geno <- ggplot(alpha_long %>% filter(trait %in% c("Resistance","Suscepti
 save_fig(p_alpha_geno, "figures/P1_alpha/alpha_boxplot_genotype", w=10, h=5)
 
 ## By time (faceted by treatment × genotype)
-p_alpha_time <- ggplot(alpha_long %>% filter(trait %in% c("Resistance","Susceptible")),
-                       aes(harvest, value, fill=treatment)) +
-  geom_boxplot(outlier.shape=NA, alpha=0.8) +
+p_alpha_time <- ggplot(alpha_long %>% filter(trait %in% c("Resistant","Susceptible")),
+                       aes(harvest_num, value, fill=treatment)) +
+  geom_boxplot(outlier.shape=NA, alpha=0.8, aes(group=interaction(harvest_num, treatment))) +
   geom_jitter(width=0.15, size=1, alpha=0.4) +
   facet_grid(metric ~ trait, scales="free_y") +
+  scale_x_continuous(breaks=c(0,2,3,4,5,6)) +
   scale_fill_manual(values=PAL$treatment) +
-  theme_pub(BASE_SIZE - 2) + theme(axis.text.x=element_text(angle=45, hjust=1)) +
-  labs(x="Harvest", y="Alpha diversity", fill="Treatment",
+  theme_pub(BASE_SIZE - 2) +
+  labs(x="Day", y="Alpha diversity", fill="Treatment",
        title="Alpha diversity across time, genotype, and treatment")
 save_fig(p_alpha_time, "figures/P1_alpha/alpha_boxplot_time_genotype", w=12, h=10)
 
 ## Temporal trajectories with regression stats
 alpha_trend_stats <- alpha_long %>%
-  filter(trait %in% c("Resistance","Susceptible")) %>%
+  filter(trait %in% c("Resistant","Susceptible")) %>%
   group_by(metric, trait) %>%
   summarise(
     p_time = summary(lm(value ~ harvest_num))$coefficients["harvest_num",4],
@@ -425,7 +381,7 @@ alpha_trend_stats <- alpha_long %>%
   mutate(label_time = sprintf("Time %s", sig_stars(p_time)),
          label_int = sprintf("Time×Trt %s", sig_stars(p_trt_time)))
 
-p_alpha_traj <- ggplot(alpha_long %>% filter(trait %in% c("Resistance","Susceptible")),
+p_alpha_traj <- ggplot(alpha_long %>% filter(trait %in% c("Resistant","Susceptible")),
                        aes(harvest_num, value, colour=treatment, fill=treatment)) +
   geom_point(size=2, alpha=0.6) +
   geom_smooth(method="lm", se=TRUE, alpha=0.15, linewidth=0.8) +
@@ -440,10 +396,10 @@ save_fig(p_alpha_traj, "figures/P1_alpha/alpha_temporal_trajectories", w=10, h=1
 
 ## Temporal slope estimates with 95% confidence intervals
 slope_estimates <- do.call(rbind, lapply(
-  split(alpha_long %>% filter(trait %in% c("Resistance","Susceptible")),
-        list((alpha_long %>% filter(trait %in% c("Resistance","Susceptible")))$metric,
-             (alpha_long %>% filter(trait %in% c("Resistance","Susceptible")))$treatment,
-             (alpha_long %>% filter(trait %in% c("Resistance","Susceptible")))$trait)),
+  split(alpha_long %>% filter(trait %in% c("Resistant","Susceptible")),
+        list((alpha_long %>% filter(trait %in% c("Resistant","Susceptible")))$metric,
+             (alpha_long %>% filter(trait %in% c("Resistant","Susceptible")))$treatment,
+             (alpha_long %>% filter(trait %in% c("Resistant","Susceptible")))$trait)),
   function(d) {
     d <- d[!is.na(d$value),]
     if (nrow(d) < 4) return(NULL)
@@ -482,7 +438,7 @@ save_fig(p_alpha_cond, "figures/P1_alpha/alpha_planted_vs_unplanted", w=8, h=5)
 
 ## Full alpha statistics table
 alpha_full_stats <- alpha_long %>%
-  filter(trait %in% c("Resistance","Susceptible")) %>%
+  filter(trait %in% c("Resistant","Susceptible")) %>%
   group_by(metric) %>%
   summarise(
     p_time = summary(lm(value ~ harvest_num))$coefficients["harvest_num",4],
@@ -652,7 +608,7 @@ p_dist_sens <- ggplot(dist_plot_df, aes(Factor, R2, fill=Metric)) +
   scale_fill_brewer(palette="Set2") + theme_pub() +
   labs(x=NULL, y="PERMANOVA R²", fill="Distance metric",
        title="Sensitivity: PERMANOVA results across distance metrics")
-save_fig(p_dist_sens, "figures/supplementary/sensitivity_distance_metrics", w=9, h=5)
+save_fig(p_dist_sens, "figures/P1_qc/sensitivity_distance_metrics", w=9, h=5)
 
 ## ── SENSITIVITY: PERMANOVA model specification ──────────────────────────
 cat("── Sensitivity: PERMANOVA model specification ──\n")
@@ -743,7 +699,7 @@ p_pcoa <- ggplot(ord_df, aes(Axis.1, Axis.2, colour=treatment, shape=trait)) +
   geom_point(size=3.5, alpha=0.8) +
   stat_ellipse(aes(group=treatment), level=0.68, linewidth=0.8) +
   scale_colour_manual(values=PAL$treatment) +
-  scale_shape_manual(values=c(Resistance=16, Susceptible=17)) +
+  scale_shape_manual(values=c(Resistant=16, Susceptible=17)) +
   facet_wrap(~harvest, ncol=3) + theme_pub() +
   labs(x=paste0("PCoA1 (",ve[1],"%)"), y=paste0("PCoA2 (",ve[2],"%)"),
        colour="Treatment", shape="Genotype",
@@ -763,7 +719,7 @@ perm_temp_long <- perm_per_day %>%
 p_r2 <- ggplot(perm_temp_long, aes(day, R2, colour=Factor)) +
   geom_line(linewidth=1) + geom_point(size=3) +
   geom_text(aes(label=sig), vjust=-1, size=4, show.legend=FALSE) +
-  scale_colour_manual(values=c(Treatment=PAL$treatment[["Drought"]], Genotype=PAL$genotype[["Resistance"]])) +
+  scale_colour_manual(values=c(Treatment=PAL$treatment[["Drought"]], Genotype=PAL$genotype[["Resistant"]])) +
   theme_pub() + labs(x="Day", y="PERMANOVA R²",
                      title="Effect size dynamics through time",
                      subtitle="BH-adjusted: * p<0.05  ** p<0.01  *** p<0.001")
@@ -856,6 +812,206 @@ p_diverg <- ggplot(diverg_df, aes(day, divergence, colour=treatment)) +
 save_fig(p_diverg, "figures/P1_beta/divergence_from_baseline", w=10, h=5)
 
 cat("\nPillar 1 complete.\n\n")
+
+## ==========================================================================
+## BLOCK A: NMDS ORDINATIONS (post-prevalence Bray-Curtis)
+## ==========================================================================
+
+cat("\n── NMDS ordinations (post-prevalence Bray-Curtis) ──\n")
+
+## Colour palettes — canonical values from theme_constants.r
+cols_treat_nmds <- PAL$treatment
+cols_trait_nmds <- PAL$genotype
+
+## Shared NMDS theme — extends theme_pub for larger NMDS point/label sizes
+nmds_theme <- theme_pub(base_size = 16) +
+  theme(
+    axis.title    = element_text(size = 18, face = "bold"),
+    plot.subtitle = element_text(size = 14)
+  )
+
+## ── Single metaMDS on all 108 samples (bray_all, post-prevalence) ───────────
+## Stress ~0.156 from 108-sample ordination; planted plots subset the scores.
+set.seed(123)
+nmds_all_fit  <- metaMDS(bray_all, k = 2, trymax = 100, trace = 0)
+stress_all    <- round(nmds_all_fit$stress, 3)
+cat(sprintf("  NMDS stress (108 samples): %.3f\n", stress_all))
+
+meta_all_nmds <- data.frame(sample_data(ps_rel))
+
+nmds_scores_all <- as.data.frame(vegan::scores(nmds_all_fit, display = "sites")) %>%
+  tibble::rownames_to_column("Sample") %>%
+  dplyr::left_join(meta_all_nmds %>% tibble::rownames_to_column("Sample"), by = "Sample")
+
+write.csv(nmds_scores_all, "tables/P1_beta/NMDS_all_samples_coordinates.csv", row.names = FALSE)
+
+## Planted subset of the 108-sample scores (for plots 1-3)
+nmds_scores_pl <- nmds_scores_all %>% dplyr::filter(condition == "Planted")
+
+## ── (1) NMDS by Treatment (planted only, PERMANOVA on bray_planted) ──────────
+perm_treat_nmds <- adonis2(bray_planted ~ treatment, data = meta_pl, permutations = 999)
+p_val_treat <- perm_treat_nmds$`Pr(>F)`[1]
+
+p_nmds_treat <- ggplot(nmds_scores_pl, aes(NMDS1, NMDS2, color = treatment)) +
+  geom_point(size = 4, alpha = 0.7) +
+  stat_ellipse(level = 0.68, linewidth = 1.2) +
+  scale_color_manual(values = cols_treat_nmds) +
+  nmds_theme +
+  labs(
+    title = "Community structure by treatment",
+    subtitle = sprintf("Stress = %.3f | PERMANOVA: Treatment R\u00b2=%.3f, p=%.3f%s",
+                       stress_all, perm_treat_nmds$R2[1], p_val_treat,
+                       sig_stars(p_val_treat)),
+    color = "Treatment"
+  )
+
+save_fig(p_nmds_treat, "figures/P1_beta/NMDS_by_treatment", w = 10, h = 8)
+cat(sprintf("  Treatment NMDS: R2=%.3f, p=%.3f\n",
+            perm_treat_nmds$R2[1], p_val_treat))
+
+## ── (2) NMDS by Genotype (planted only, PERMANOVA on bray_planted) ───────────
+perm_trait_nmds <- adonis2(bray_planted ~ trait, data = meta_pl, permutations = 999)
+p_val_trait <- perm_trait_nmds$`Pr(>F)`[1]
+
+p_nmds_trait <- ggplot(nmds_scores_pl, aes(NMDS1, NMDS2, color = trait)) +
+  geom_point(size = 4, alpha = 0.7) +
+  stat_ellipse(level = 0.68, linewidth = 1.2) +
+  scale_color_manual(values = cols_trait_nmds) +
+  nmds_theme +
+  labs(
+    title = "Community structure by genotype",
+    subtitle = sprintf("Stress = %.3f | PERMANOVA: Genotype R\u00b2=%.3f, p=%.3f%s",
+                       stress_all, perm_trait_nmds$R2[1], p_val_trait,
+                       sig_stars(p_val_trait)),
+    color = "Genotype"
+  )
+
+save_fig(p_nmds_trait, "figures/P1_beta/NMDS_by_genotype", w = 10, h = 8)
+cat(sprintf("  Genotype NMDS: R2=%.3f, p=%.3f\n",
+            perm_trait_nmds$R2[1], p_val_trait))
+
+## ── (3) NMDS by Harvest Day (planted only, PERMANOVA on bray_planted) ────────
+perm_time_nmds <- adonis2(bray_planted ~ harvest_num, data = meta_pl, permutations = 999)
+p_val_time <- perm_time_nmds$`Pr(>F)`[1]
+
+p_nmds_time <- ggplot(nmds_scores_pl, aes(NMDS1, NMDS2, color = factor(harvest_num))) +
+  geom_point(size = 4, alpha = 0.7) +
+  stat_ellipse(level = 0.68, linewidth = 1.2) +
+  scale_color_viridis_d(option = "plasma", name = "Day") +
+  nmds_theme +
+  labs(
+    title = "Community structure by harvest day",
+    subtitle = sprintf("Stress = %.3f | PERMANOVA: Time R\u00b2=%.3f, p=%.3f%s",
+                       stress_all, perm_time_nmds$R2[1], p_val_time,
+                       sig_stars(p_val_time))
+  )
+
+save_fig(p_nmds_time, "figures/P1_beta/NMDS_by_time", w = 10, h = 8)
+cat(sprintf("  Harvest day NMDS: R2=%.3f, p=%.3f\n",
+            perm_time_nmds$R2[1], p_val_time))
+
+## ── (4) NMDS: Planted vs Unplanted (all 108, PERMANOVA on bray_all) ──────────
+perm_cond_nmds <- adonis2(bray_all ~ condition, data = meta_all_nmds, permutations = 999)
+p_val_cond <- perm_cond_nmds$`Pr(>F)`[1]
+
+p_nmds_cond <- ggplot(nmds_scores_all, aes(NMDS1, NMDS2, color = condition)) +
+  geom_point(size = 4, alpha = 0.7) +
+  stat_ellipse(level = 0.68, linewidth = 1.2) +
+  scale_color_manual(values = c("Planted" = "#4CAF50", "Unplanted" = "#9E9E9E")) +
+  nmds_theme +
+  labs(
+    title = "Planted vs Unplanted",
+    subtitle = sprintf("Stress = %.3f | PERMANOVA: Condition R\u00b2=%.3f, p=%.3f%s",
+                       stress_all, perm_cond_nmds$R2[1], p_val_cond,
+                       sig_stars(p_val_cond)),
+    color = "Condition"
+  )
+
+save_fig(p_nmds_cond, "figures/P1_beta/NMDS_planted_vs_unplanted", w = 10, h = 8)
+cat(sprintf("  Planted vs Unplanted NMDS: R2=%.3f, p=%.3f\n",
+            perm_cond_nmds$R2[1], p_val_cond))
+
+cat("  NMDS figures saved to figures/P1_beta/\n\n")
+
+
+## ==========================================================================
+## BLOCK B: TAXONOMY COMPOSITION BARPLOTS
+## ==========================================================================
+
+cat("── Taxonomy composition barplots ──\n")
+dir.create("figures/P1_composition", recursive = TRUE, showWarnings = FALSE)
+
+## Helper: aggregate ps to rank, collapse to top-N + Other, return long df
+.tax_melt <- function(ps_obj, rank, N) {
+  ag  <- tax_glom(ps_obj, taxrank = rank)
+  df  <- psmelt(ag) %>% dplyr::mutate(Taxon = !!rlang::sym(rank))
+  top_taxa <- df %>%
+    dplyr::group_by(Taxon) %>%
+    dplyr::summarise(
+      m    = mean(Abundance),
+      prev = dplyr::n_distinct(Sample[Abundance > 0]) / dplyr::n_distinct(Sample),
+      .groups = "drop"
+    ) %>%
+    dplyr::arrange(dplyr::desc(m), dplyr::desc(prev)) %>%
+    dplyr::slice_head(n = N) %>% dplyr::pull(Taxon)
+  df$Taxon <- ifelse(df$Taxon %in% top_taxa, df$Taxon, "Other")
+  df
+}
+
+## Helper: aggregate df to one bar per group (x_var), mean across all days
+.agg_by_group <- function(df, x_var) {
+  df %>%
+    dplyr::group_by(!!rlang::sym(x_var), Taxon) %>%
+    dplyr::summarise(Abundance = mean(Abundance), .groups = "drop")
+}
+
+## Helper: shared barplot ggplot layer — one bar per group, no time faceting
+.stack_plot <- function(df_agg, x_var, rank, N) {
+  ggplot(df_agg, aes(!!rlang::sym(x_var), Abundance, fill = Taxon)) +
+    geom_col(position = "fill") +
+    theme_pub(base_size = 14) +
+    labs(y = "Relative abundance", x = x_var,
+         title = sprintf("Community composition: Top %d %s", N, tolower(rank)),
+         fill = rank)
+}
+
+## Produce three plots per rank — one bar per group, averaged across all days
+.plot_topN_three <- function(rank = "Phylum", N = 10,
+                             dir = "figures/P1_composition") {
+  ## Planted data (treatment + genotype panels)
+  df_pl  <- .tax_melt(ps_rel_planted, rank, N)
+  ## All-samples data (condition panel)
+  df_all <- .tax_melt(ps_rel, rank, N)
+
+  ## Plot 1: one bar per treatment (Drought vs Watered)
+  p_trt <- .stack_plot(.agg_by_group(df_pl,  "treatment"), "treatment", rank, N)
+  save_fig(p_trt,
+           file.path(dir, sprintf("stack_%s_treatment", tolower(rank))),
+           w = 7, h = 6)
+
+  ## Plot 2: one bar per genotype (Resistant vs Susceptible)
+  p_gen <- .stack_plot(.agg_by_group(df_pl,  "trait"),     "trait",     rank, N)
+  save_fig(p_gen,
+           file.path(dir, sprintf("stack_%s_genotype",  tolower(rank))),
+           w = 7, h = 6)
+
+  ## Plot 3: one bar per condition (Planted vs Unplanted)
+  p_cond <- .stack_plot(.agg_by_group(df_all, "condition"),  "condition",  rank, N)
+  save_fig(p_cond,
+           file.path(dir, sprintf("stack_%s_condition",  tolower(rank))),
+           w = 7, h = 6)
+
+  cat(sprintf("  %s: treatment / genotype / condition barplots saved\n", rank))
+}
+
+## Generate three plots at five taxonomic ranks
+.plot_topN_three("Phylum", 10)
+.plot_topN_three("Class",  10)
+.plot_topN_three("Order",  10)
+.plot_topN_three("Family", 10)
+.plot_topN_three("Genus",  10)
+
+cat("  Taxonomy barplots saved to figures/P1_composition/\n\n")
 
 ## =============================================================================
 ##  PILLAR 2: ASSEMBLY MECHANISM DYNAMICS (βNTI / RC-bray)
@@ -1001,7 +1157,6 @@ if (icamp_available) {
   }
   
   ## ── STATISTICAL TEST: iCAMP process proportions Drought vs Watered ────
-  ## This is CRITICAL — the headline finding must be statistically supported
   cat("\n── Statistical tests for assembly mechanism differences ──\n")
   
   if ("comparison_type" %in% colnames(proc_df)) {
@@ -1089,7 +1244,7 @@ if (icamp_available) {
     cat("and compare assembly fractions. If results are consistent, the finding is robust.\n\n")
   }
   
-  ## iCAMP summary table
+  ## iCAMP summary table for manuscript
   if (exists("proc_df") && "Process" %in% colnames(proc_df)) {
     icamp_summary <- proc_df %>%
       {if("comparison_type" %in% colnames(.)) filter(., grepl("Within", comparison_type)) else .} %>%
@@ -1109,9 +1264,7 @@ if (icamp_available) {
   }
   
   cat("Pillar 2 complete.\n\n")
-} else {
-  cat("iCAMP results not found — run on CHPC. Pillar 2 deferred.\n\n")
-}
+}  ## end if (icamp_available)
 
 ## =============================================================================
 ##  PILLAR 3: DIFFERENTIAL ABUNDANCE + FUNCTIONAL PROFILING
@@ -1239,7 +1392,7 @@ if (!is.null(ancom_geno)) {
   
   p_vol_geno <- ggplot(geno_df, aes(lfc, -log10(qval), colour=Direction)) +
     geom_point(alpha=0.4, size=1.5) +
-    scale_colour_manual(values=c(Resistant_enriched=PAL$genotype[["Resistance"]], Susceptible_enriched=PAL$genotype[["Susceptible"]], NS=COL_SIG_NS)) +
+    scale_colour_manual(values=c(Resistant_enriched=PAL$genotype[["Resistant"]], Susceptible_enriched=PAL$genotype[["Susceptible"]], NS=COL_SIG_NS)) +
     geom_vline(xintercept=c(-1,1), linetype="dashed", alpha=0.3) +
     geom_hline(yintercept=-log10(0.05), linetype="dashed", alpha=0.3) +
     ggrepel::geom_text_repel(data=top_label_g, aes(label=Label), size=3, max.overlaps=20,
@@ -1349,7 +1502,7 @@ if (!is.null(trt_df) && !is.null(geno_df)) {
   dev.off()
 }
 
-## ── 3d. PICRUSt2 functional profiling ────────────
+## ── 3d. PICRUSt2 functional profiling (expanded — 8 analyses) ────────────
 cat("\n── Functional profiling (PICRUSt2) — expanded analyses ──\n\n")
 
 picrust_ko    <- "picrust2/picrust2_output/KO_metagenome_out/pred_metagenome_unstrat.tsv.gz"
@@ -1538,13 +1691,13 @@ if (picrust_available) {
                                 "tables/P3_da/ANCOMBC2_KO_treatment.csv",
                                 "Treatment (Drought vs Watered)")
 
-    ## Comparison B: Resistance vs Susceptible (planted only, trait != Unplanted)
+    ## Comparison B: Resistant vs Susceptible (planted only, trait != Unplanted)
     ps_ko_planted <- prune_samples(
-      sample_data(ps_ko)$trait %in% c("Resistance","Susceptible"), ps_ko)
+      sample_data(ps_ko)$trait %in% c("Resistant","Susceptible"), ps_ko)
     ps_ko_planted <- prune_taxa(taxa_sums(ps_ko_planted) > 0, ps_ko_planted)
     anc_geno <- run_ancombc2_ko(ps_ko_planted, "trait",
                                  "tables/P3_da/ANCOMBC2_KO_genotype.csv",
-                                 "Genotype (Resistance vs Susceptible)")
+                                 "Genotype (Resistant vs Susceptible)")
 
     ## Comparison C: Early (Days 0-3) vs Late (Days 4-6)
     anc_time <- run_ancombc2_ko(ps_ko, "time_group",
@@ -1739,7 +1892,7 @@ if (picrust_available) {
       mutate(factor_type="Treatment", factor_level=treatment,
              fill_var=treatment)
     fa_3f_gen <- fa_long %>%
-      dplyr::filter(trait %in% c("Resistance","Susceptible")) %>%
+      dplyr::filter(trait %in% c("Resistant","Susceptible")) %>%
       mutate(factor_type="Genotype", factor_level=as.character(trait),
              fill_var=as.character(trait))
     fa_3f_time <- fa_long %>%
@@ -2194,7 +2347,7 @@ if (picrust_available) {
         scale_shape_manual(values=c("TRUE"=16, "FALSE"=21), guide="none") +
         scale_x_continuous(breaks=timepoints) +
         theme_pub() +
-        labs(x="Harvest day", y="Mantel r (phenotype ~ microbiome)",
+        labs(x="Day", y="Mantel r (phenotype ~ microbiome)",
              title="Phenotype-microbiome coupling over time",
              subtitle="Functional vs taxonomic Mantel r, Spearman, 499 permutations")
       save_fig(p_mantel_time, "figures/P3_function/mantel_over_time",
@@ -2228,7 +2381,7 @@ if (picrust_available) {
     save_fig(p_pw_traj, "figures/P3_function/functional_temporal_PCoA",
              w=ISME_DOUBLE_W, h=5)
 
-    ## ── Static pathway PCoA (treatment × genotype) ───────────
+    ## ── Static pathway PCoA (treatment × genotype) — used in FigS8 ───────────
     tryCatch({
       set.seed(42)
       perm_pw_static <- adonis2(pw_bray_full ~ treatment + trait + harvest_num,
@@ -2239,7 +2392,7 @@ if (picrust_available) {
         Ax1 = ord_pw3$points[, 1], Ax2 = ord_pw3$points[, 2],
         pw_meta3[rownames(ord_pw3$points), ]
       )
-      pw_pcoa_static$trait[pw_pcoa_static$trait == "Resistance"] <- "Resistant"
+      pw_pcoa_static$trait[pw_pcoa_static$trait == "Resistant"] <- "Resistant"
       p_pw_pcoa <- ggplot(pw_pcoa_static,
                            aes(Ax1, Ax2, colour = treatment, shape = trait)) +
         geom_point(size = 3, alpha = 0.85) +
@@ -2298,7 +2451,7 @@ if (picrust_available) {
         scale_fill_manual(values=PAL$treatment) +
         scale_x_continuous(breaks=sort(unique(pw_pcoa_df$harvest_num))) +
         theme_pub() +
-        labs(x="Harvest day",
+        labs(x="Day",
              y="Functional distance from Day-0 centroid (PCoA)",
              colour="Treatment", fill="Treatment",
              title="Functional community turnover velocity",
@@ -2420,9 +2573,9 @@ if (picrust_available) {
       save_fig(p_ko_cat, "figures/P3_function/KO_drought_categories_boxplot",
                w=ISME_DOUBLE_W, h=5.5)
 
-      ## ── Figure B: by genotype (Resistance vs Susceptible) ───────────────
+      ## ── Figure B: by genotype (Resistant vs Susceptible) ───────────────
       ko_cat_gen <- ko_cat_df %>%
-        dplyr::filter(trait %in% c("Resistance","Susceptible"))
+        dplyr::filter(trait %in% c("Resistant","Susceptible"))
       if (nrow(ko_cat_gen) > 0) {
         gen_stats_list <- lapply(levels(ko_cat_gen$category), function(cat) {
           sub <- ko_cat_gen[ko_cat_gen$category == cat, ]
@@ -2516,7 +2669,7 @@ if (picrust_available) {
                                        margin=margin(1,1,1,1,"pt"),
                                        family=FONT_FAMILY),
               strip.clip="off") +
-        labs(x="Harvest day", y="Mean predicted abundance",
+        labs(x="Day", y="Mean predicted abundance",
              colour="Treatment", fill="Treatment",
              title="Drought-relevant functional categories over time (PICRUSt2)",
              subtitle="Mean \u00b1 SE; Kruskal-Wallis p (time effect) per panel")
@@ -3242,11 +3395,6 @@ if (nrow(merged) >= 20) {
   cat(sprintf("Procrustes: r=%.3f, m²=%.3f, p=%.4f %s\n",
               procr_r, procr$ss, procr$signif, sig_stars(procr$signif)))
   cat("NOTE: Procrustes tests concordance of full ordination configurations.\n")
-  if (procr$signif > 0.05) {
-    cat("  → Procrustes is NOT significant — ordinations are not concordant overall.\n")
-    cat("  → This means microbiome and morphology ordinations do not share a common structure.\n")
-    cat("  → Report this honestly; do not claim microbiome 'tracks' morphology.\n")
-  }
   write.csv(data.frame(r=procr_r, m2=procr$ss, p=procr$signif,
                         significant=procr$signif < 0.05),
             "tables/P4_phenotype/procrustes_result.csv", row.names=FALSE)
@@ -3294,15 +3442,7 @@ if (nrow(merged) >= 20) {
     coupling$sig <- sig_stars(coupling$p)
     write.csv(coupling, "tables/P4_phenotype/phenotype_coupling_temporal.csv", row.names=FALSE)
     cat("\nTemporal coupling:\n"); print(coupling)
-    
-    ## Honest interpretation
-    n_sig <- sum(coupling$p < 0.05, na.rm=TRUE)
-    cat(sprintf("\n%d of %d timepoints show significant coupling.\n", n_sig, nrow(coupling)))
-    if (n_sig <= 2) {
-      cat("INTERPRETATION: Weak and inconsistent phenotype-microbiome coupling.\n")
-      cat("This should be reported as a supplementary finding, not a main narrative pillar.\n")
-    }
-    
+  
     p_coupling <- ggplot(coupling, aes(day, r)) +
       geom_hline(yintercept=0, linetype="dashed", colour="grey50") +
       geom_line(linewidth=1, colour="#2166AC") + geom_point(size=4, colour="#2166AC") +
@@ -3445,7 +3585,7 @@ if (nrow(merged) >= 20) {
       Trait_label = factor(
         ifelse(Trait %in% names(trait_labels_map), trait_labels_map[Trait], Trait),
         levels=unname(trait_labels_map[morph_vars])),
-      trait_label = factor(as.character(trait), levels=c("Susceptible","Resistance"))
+      trait_label = factor(as.character(trait), levels=c("Susceptible","Resistant"))
     )
 
   ## 1. Fixed subtitle highlighting the two significant traits
@@ -3463,8 +3603,8 @@ if (nrow(merged) >= 20) {
   trend_ann <- data.frame(
     Trait_label = factor(c("Fresh root wt (g)", "Dry root wt (g)"),
                          levels = unname(trait_labels_map[morph_vars])),
-    trait_label = factor(c("Susceptible", "Resistance"),
-                         levels = c("Susceptible","Resistance")),
+    trait_label = factor(c("Susceptible", "Resistant"),
+                         levels = c("Susceptible","Resistant")),
     label       = c("Drought trend:\nslope=\u22120.29, p=0.004",
                     "Drought trend:\nslope=\u22120.09, p=0.040"),
     stringsAsFactors = FALSE
@@ -3616,134 +3756,89 @@ if (!is.null(trt_df) && exists("merged") && nrow(merged) >= 20) {
               min(pearson_mat_lk[lower.tri(pearson_mat_lk)]),
               max(pearson_mat_lk[lower.tri(pearson_mat_lk)])))
 
-  ## Step 5: linkET-style figure
-  n_gen_lk <- nrow(selected_genera_lk)
-  n_tr_lk  <- length(weight_traits_lk)
+  ## Step 5:linkET figure (Panel A: Mantel heatmap, Panel B: Pearson heatmap)
 
-  selected_genera_lk$y_pos <- c(
-    rev(seq(n_gen_lk/2 + 1, n_gen_lk)),
-    rev(seq(1, n_gen_lk/2))
+  ## ── Genus order: watered at bottom, drought at top (factor bottom→top) ───────
+  gen_order_lk  <- c(
+    selected_genera_lk$Genus[selected_genera_lk$Enrichment == "watered"],
+    selected_genera_lk$Genus[selected_genera_lk$Enrichment == "drought"]
   )
-  trait_y_lk <- seq(n_gen_lk * 0.25, n_gen_lk * 0.75, length.out=n_tr_lk)
-  trait_df_lk <- data.frame(
-    Trait       = weight_traits_lk,
-    Trait_label = trait_labels_map_lk[weight_traits_lk],
-    x_pos       = 5,
-    y_pos       = trait_y_lk,
-    stringsAsFactors = FALSE
-  )
+  n_watered_lk  <- sum(selected_genera_lk$Enrichment == "watered")
 
-  lines_df_lk <- mantel_res_lk %>%
-    dplyr::filter(!is.na(Mantel_p_adj), Mantel_p_adj < 0.05) %>%
-    dplyr::left_join(selected_genera_lk[,c("Genus","y_pos")], by="Genus") %>%
-    dplyr::left_join(trait_df_lk[,c("Trait","y_pos")], by="Trait", suffix=c("_g","_t")) %>%
+  ## Italic markdown labels with embedded enrichment colour
+  enrichment_by_genus_lk <- selected_genera_lk$Enrichment[
+    match(gen_order_lk, selected_genera_lk$Genus)]
+  gen_axis_cols_lk <- ifelse(enrichment_by_genus_lk == "drought", COL_DROUGHT, COL_WATERED)
+  gen_labels_md_lk <- sprintf("<span style='color:%s'>*%s*</span>",
+                               gen_axis_cols_lk, gen_order_lk)
+  names(gen_labels_md_lk) <- gen_order_lk
+
+  ## ── Panel A: Mantel r heatmap ─────────────────────────────────────────────
+  mantel_plot_df_lk <- mantel_res_lk %>%
     dplyr::mutate(
-      line_col   = ifelse(Mantel_p_adj<0.001,"#1A1A1A",
-                    ifelse(Mantel_p_adj<0.01,"#4D4D4D","#999999")),
-      line_width = scales::rescale(abs(Mantel_r), to=c(0.5, 2.5),
-                                    from=c(0, max(abs(mantel_res_lk$Mantel_r), na.rm=TRUE)))
+      Trait_label = trait_labels_map_lk[Trait],
+      Genus       = factor(Genus, levels = gen_order_lk),
+      star        = dplyr::case_when(
+        !is.na(Mantel_p_adj) & Mantel_p_adj < 0.001 ~ "***",
+        !is.na(Mantel_p_adj) & Mantel_p_adj < 0.01  ~ "**",
+        !is.na(Mantel_p_adj) & Mantel_p_adj < 0.05  ~ "*",
+        TRUE ~ ""
+      )
     )
 
-  selected_genera_lk$label_col <- ifelse(selected_genera_lk$Enrichment=="drought",
-                                          COL_DROUGHT, COL_WATERED)
+  pA_lk <- ggplot(mantel_plot_df_lk,
+                  aes(x = Trait_label, y = Genus, fill = Mantel_r)) +
+    geom_tile(colour = "white", linewidth = 0.5) +
+    geom_text(aes(label = star), size = 4, vjust = 0.8, colour = "grey20") +
+    geom_hline(yintercept = n_watered_lk + 0.5,
+               linetype = "dashed", colour = "grey50", linewidth = 0.5) +
+    scale_fill_gradient2(low = "#2166AC", mid = "white", high = "#B2182B",
+                         midpoint = 0, limits = c(-1, 1), na.value = "grey90",
+                         name = "Mantel r",
+                         guide = guide_colourbar(barwidth = 0.8, barheight = 5)) +
+    scale_y_discrete(labels = gen_labels_md_lk) +
+    theme_pub(BASE_SIZE - 2) +
+    theme(axis.text.y  = ggtext::element_markdown(size = 9),
+          axis.text.x  = element_text(size = 9, angle = 30, hjust = 1),
+          axis.title   = element_blank(),
+          legend.position = "right") +
+    labs(title    = "A",
+         subtitle = sprintf("%d / %d pairs significant (BH-adjusted p < 0.05)",
+                             n_sig_lk, nrow(mantel_plot_df_lk)))
 
-  heatmap_off_x_lk <- 7
-  heatmap_scale_lk <- 0.7
-  gen_order_lk <- selected_genera_lk$Genus
-  pearson_long2_lk <- as.data.frame(pearson_mat_lk) %>%
+  ## ── Panel B: lower-triangle Pearson co-abundance heatmap ─────────────────
+  .pos_lk <- setNames(seq_along(gen_order_lk), gen_order_lk)
+  pearson_long_lk <- as.data.frame(pearson_mat_lk) %>%
     tibble::rownames_to_column("Genus_row") %>%
-    tidyr::pivot_longer(-Genus_row, names_to="Genus_col", values_to="r") %>%
+    tidyr::pivot_longer(-Genus_row, names_to = "Genus_col", values_to = "r") %>%
+    dplyr::filter(.pos_lk[Genus_row] > .pos_lk[Genus_col]) %>%
     dplyr::mutate(
-      row_idx = match(Genus_row, gen_order_lk),
-      col_idx = match(Genus_col, gen_order_lk)
-    ) %>%
-    dplyr::filter(!is.na(row_idx), !is.na(col_idx)) %>%
-    dplyr::mutate(
-      hm_x = heatmap_off_x_lk + (row_idx-1) * heatmap_scale_lk,
-      hm_y = (col_idx - 0.5) * heatmap_scale_lk
+      Genus_row = factor(Genus_row, levels = gen_order_lk),
+      Genus_col = factor(Genus_col, levels = gen_order_lk)
     )
 
-  sep_y_lk <- n_gen_lk/2 + 0.5
+  pB_lk <- ggplot(pearson_long_lk, aes(x = Genus_col, y = Genus_row, fill = r)) +
+    geom_tile(colour = "white", linewidth = 0.3) +
+    scale_fill_gradient2(low = "#2166AC", mid = "white", high = "#D6604D",
+                         midpoint = 0, limits = c(-1, 1), na.value = "grey90",
+                         name = "Pearson r",
+                         guide = guide_colourbar(barwidth = 0.8, barheight = 5)) +
+    scale_x_discrete(labels = gen_labels_md_lk) +
+    scale_y_discrete(labels = gen_labels_md_lk) +
+    theme_pub(BASE_SIZE - 2) +
+    theme(axis.text.x  = ggtext::element_markdown(size = 7, angle = 45, hjust = 1),
+          axis.text.y  = ggtext::element_markdown(size = 7),
+          axis.title   = element_blank(),
+          legend.position = "right") +
+    labs(title    = "B",
+         subtitle = "Pairwise co-abundance (CLR-transformed genus counts)")
 
-  p_linket <- ggplot() +
-    annotate("segment", x=-4.5, xend=5.8, y=sep_y_lk, yend=sep_y_lk,
-             linetype="dashed", colour="grey65", linewidth=0.4) +
-    annotate("text", x=-4.5, y=sep_y_lk+0.6, label="Drought-enriched",
-             hjust=0, size=2.8, colour=COL_DROUGHT, fontface="bold") +
-    annotate("text", x=-4.5, y=sep_y_lk-0.6, label="Watered-enriched",
-             hjust=0, size=2.8, colour=COL_WATERED, fontface="bold") +
-    {if (nrow(lines_df_lk) > 0)
-      geom_segment(data=lines_df_lk,
-                   aes(x=0.15, y=y_pos_g, xend=4.85, yend=y_pos_t,
-                       linewidth=line_width, colour=line_col),
-                   alpha=0.75, lineend="round")
-     else annotate("text", x=2.5, y=n_gen_lk/2,
-                   label="No significant pairs (BH-adjusted)",
-                   colour="grey50", size=3.5)} +
-    geom_point(data=selected_genera_lk,
-               aes(x=0.15, y=y_pos, colour=label_col),
-               size=2.8, shape=16) +
-    geom_text(data=selected_genera_lk,
-              aes(x=0.05, y=y_pos, label=Genus, colour=label_col),
-              hjust=1, size=2.7, fontface="italic") +
-    geom_point(data=trait_df_lk,
-               aes(x=4.85, y=y_pos),
-               size=3.5, shape=18, colour="grey25") +
-    geom_text(data=trait_df_lk,
-              aes(x=5.0, y=y_pos, label=Trait_label),
-              hjust=0, size=3.0, colour="grey25") +
-    annotate("text",
-             x=heatmap_off_x_lk + (n_gen_lk-1)*heatmap_scale_lk/2,
-             y=n_gen_lk*heatmap_scale_lk + 0.8,
-             label="Pearson r (genus CLR)",
-             hjust=0.5, size=3, colour="grey20") +
-    geom_tile(data=pearson_long2_lk,
-              aes(x=hm_x, y=hm_y, fill=r),
-              colour=NA, width=heatmap_scale_lk*0.95, height=heatmap_scale_lk*0.95) +
-    scale_fill_gradient2(low="#2166AC", mid="white", high="#D6604D",
-                         midpoint=0, limits=c(-1,1),
-                         name="Pearson r",
-                         guide=guide_colourbar(barwidth=0.8, barheight=5)) +
-    scale_colour_identity() +
-    scale_linewidth_identity() +
-    coord_cartesian(xlim=c(-4.8, heatmap_off_x_lk + n_gen_lk*heatmap_scale_lk + 0.5),
-                    ylim=c(-0.5, n_gen_lk + 1.5), clip="off") +
-    annotate("segment", x=6.0, xend=6.5, y=1.5, yend=1.5,
-             colour="#1A1A1A", linewidth=1.5) +
-    annotate("text", x=6.6, y=1.5, label="p<0.001", hjust=0, size=2.5, colour="grey20") +
-    annotate("segment", x=6.0, xend=6.5, y=1.0, yend=1.0,
-             colour="#4D4D4D", linewidth=1.0) +
-    annotate("text", x=6.6, y=1.0, label="p<0.01", hjust=0, size=2.5, colour="grey20") +
-    annotate("segment", x=6.0, xend=6.5, y=0.5, yend=0.5,
-             colour="#999999", linewidth=0.5) +
-    annotate("text", x=6.6, y=0.5, label="p<0.05", hjust=0, size=2.5, colour="grey20") +
-    annotate("text", x=6.3, y=2.2, label="BH-adj.", hjust=0.5, size=2.5, colour="grey40") +
-    theme_void() +
-    theme(plot.background    = element_rect(fill="white", colour=NA),
-          panel.background  = element_rect(fill="white", colour=NA),
-          legend.position    = c(0.98, 0.7),
-          legend.justification = c(1, 0.5),
-          legend.title       = element_text(size=8),
-          legend.text        = element_text(size=7),
-          plot.margin        = margin(10, 15, 5, 5, "mm"),
-          plot.title         = element_text(size=10, face="bold", hjust=0),
-          plot.subtitle      = element_text(size=8, colour="grey40", hjust=0)) +
-    labs(title="Taxon-morphology associations (linkET-style)",
-         subtitle=sprintf(
-           "Top 20 drought-responsive genera vs 4 morphological traits | %d significant pairs (BH-adjusted)",
-           n_sig_lk))
+  ## ── Combine and save ──────────────────────────────────────────────────────
+  p_linket <- pA_lk + pB_lk + plot_layout(widths = c(1, 1.4))
 
-  dir.create("figures/P4_phenotype", recursive=TRUE, showWarnings=FALSE)
-  ggsave("figures/P4_phenotype/linkET_taxa_morphology.svg",
-         p_linket, width=16, height=10, units="in", device=svglite::svglite)
-  ggsave("figures/P4_phenotype/linkET_taxa_morphology.pdf",
-         p_linket, width=16, height=10, units="in", device=cairo_pdf)
-  ggsave("figures/P4_phenotype/linkET_taxa_morphology.png",
-         p_linket, width=16, height=10, units="in", dpi=300, type="cairo")
-  cat(sprintf("linkET figure saved: .svg (%.1f KB)  .pdf (%.1f KB)  .png (%.1f KB)\n",
-      file.size("figures/P4_phenotype/linkET_taxa_morphology.svg")/1024,
-      file.size("figures/P4_phenotype/linkET_taxa_morphology.pdf")/1024,
-      file.size("figures/P4_phenotype/linkET_taxa_morphology.png")/1024))
+  dir.create("figures/P4_phenotype", recursive = TRUE, showWarnings = FALSE)
+  save_fig(p_linket, "figures/P4_phenotype/linkET_taxa_morphology", w = 14, h = 7)
+  cat("linkET figure saved: .svg  .pdf  .png  (14 × 7 in)\n")
 
   ## Report strongest associations
   cat("=== STRONGEST GENUS-TRAIT ASSOCIATIONS ===\n")
@@ -3821,55 +3916,48 @@ perf <- data.frame(
 )
 write.csv(perf, "tables/P5_prediction/RF_performance.csv", row.names=FALSE)
 
-## IMPORTANT CAVEAT about Top30 AUC
-cat("\n*** FEATURE SELECTION BIAS WARNING ***\n")
-cat("The Top30 model AUC is likely INFLATED because features were selected\n")
-cat("from the same data used for evaluation (importance ranking from the full\n")
-cat("model fitted to all 72 samples, then refit on the same samples).\n")
-cat(sprintf("The full model AUC (%.3f, p=%.4f) is the HONEST primary result.\n", auc_full, perm_p))
-cat("The Top30 AUC should be presented as EXPLORATORY — identifying which\n")
-cat("genera carry discriminatory signal — NOT as a validated classifier.\n")
-cat("For a publishable Top30 AUC, nested cross-validation is required.\n\n")
-
 perf$Caveat <- c("Primary result", "Potentially inflated by selection bias — report as exploratory")
 write.csv(perf, "tables/P5_prediction/RF_performance.csv", row.names=FALSE)
-pdf("figures/P5_prediction/ROC_with_null.pdf", w=8, h=7)
-plot(roc_full, col="#1976D2", lwd=2, main="ROC: Treatment Classification")
-plot(roc_red, col="#D32F2F", lwd=2, add=TRUE)
-abline(a=0,b=1,lty=2,col="grey")
-legend("bottomright", bty="n", lwd=2, col=c("#1976D2","#D32F2F","grey"),
-  lty=c(1,1,2), legend=c(
-    sprintf("All genera (AUC=%.3f, %s)", auc_full,
-            ifelse(perm_p < 0.001, "p<0.001", sprintf("p=%.3f", perm_p))),
-    sprintf("Top 30 (AUC=%.3f, %s) — EXPLORATORY", auc_red,
-            ifelse(perm_p_red < 0.001, "p<0.001", sprintf("p=%.3f", perm_p_red))),
-    sprintf("Null (mean=%.3f)", mean(null_aucs))))
-dev.off()
-png("figures/P5_prediction/ROC_with_null.png", w=8, h=7, units="in", res=300)
-plot(roc_full, col="#1976D2", lwd=2, main="ROC: Treatment Classification")
-plot(roc_red, col="#D32F2F", lwd=2, add=TRUE)
-abline(a=0,b=1,lty=2,col="grey")
-legend("bottomright", bty="n", lwd=2, col=c("#1976D2","#D32F2F","grey"),
-  lty=c(1,1,2), legend=c(
-    sprintf("All genera (AUC=%.3f, %s)", auc_full,
-            ifelse(perm_p < 0.001, "p<0.001", sprintf("p=%.3f", perm_p))),
-    sprintf("Top 30 (AUC=%.3f, %s) — EXPLORATORY", auc_red,
-            ifelse(perm_p_red < 0.001, "p<0.001", sprintf("p=%.3f", perm_p_red))),
-    sprintf("Null (mean=%.3f)", mean(null_aucs))))
-dev.off()
-## ROC SVG (svglite)
-svglite::svglite("figures/P5_prediction/ROC_with_null.svg", width=8, height=7)
-plot(roc_full, col="#1976D2", lwd=2, main="ROC: Treatment Classification")
-plot(roc_red, col="#D32F2F", lwd=2, add=TRUE)
-abline(a=0,b=1,lty=2,col="grey")
-legend("bottomright", bty="n", lwd=2, col=c("#1976D2","#D32F2F","grey"),
-  lty=c(1,1,2), legend=c(
-    sprintf("All genera (AUC=%.3f, %s)", auc_full,
-            ifelse(perm_p < 0.001, "p<0.001", sprintf("p=%.3f", perm_p))),
-    sprintf("Top 30 (AUC=%.3f, %s) — EXPLORATORY", auc_red,
-            ifelse(perm_p_red < 0.001, "p<0.001", sprintf("p=%.3f", perm_p_red))),
-    sprintf("Null (mean=%.3f)", mean(null_aucs))))
-dev.off()
+## ── ggplot2 ROC + null histogram (avoids pROC base-R plotting bug) ───────────
+.lbl_full <- sprintf("All genera (AUC=%.3f, %s)", auc_full,
+                     ifelse(perm_p < 0.001, "p<0.001", sprintf("p=%.3f", perm_p)))
+.lbl_red  <- sprintf("Top 30 (AUC=%.3f, %s) — EXPLORATORY", auc_red,
+                     ifelse(perm_p_red < 0.001, "p<0.001", sprintf("p=%.3f", perm_p_red)))
+.roc_cols <- setNames(c("#1976D2", "#D32F2F"), c(.lbl_full, .lbl_red))
+
+roc_df <- rbind(
+  data.frame(fpr = 1 - roc_full$specificities,
+             tpr = roc_full$sensitivities,
+             Model = .lbl_full),
+  data.frame(fpr = 1 - roc_red$specificities,
+             tpr = roc_red$sensitivities,
+             Model = .lbl_red)
+)
+
+p_roc <- ggplot(roc_df, aes(fpr, tpr, colour = Model)) +
+  geom_line(linewidth = 1) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "grey60") +
+  scale_colour_manual(values = .roc_cols) +
+  coord_equal(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme_pub() +
+  theme(legend.position = "bottom",
+        legend.direction = "vertical") +
+  labs(x = "False positive rate", y = "True positive rate",
+       title = "ROC: Treatment classification", colour = NULL)
+
+p_null <- ggplot(data.frame(auc = null_aucs), aes(auc)) +
+  geom_histogram(bins = 30, fill = "grey70", colour = "white", alpha = 0.85) +
+  geom_vline(xintercept = auc_full, colour = "#1976D2", linewidth = 1, linetype = "solid") +
+  annotate("text", x = auc_full, y = Inf, vjust = 1.5, hjust = -0.1,
+           label = sprintf("Observed\nAUC=%.3f", auc_full),
+           colour = "#1976D2", size = 3.5) +
+  theme_pub() +
+  labs(x = "Permuted AUC", y = "Count",
+       title = "Null AUC distribution",
+       subtitle = sprintf("p=%.4f (%d permutations)", perm_p, CONFIG$RF_PERM_ITER))
+
+p_roc_combined <- p_roc + p_null + plot_layout(ncol = 2, widths = c(1.2, 1))
+save_fig(p_roc_combined, "figures/P5_prediction/ROC_with_null", w = 12, h = 6)
 
 ## Feature importance barplot (top 25)
 tax_genus <- as.data.frame(tax_table(ps_genus))
@@ -3903,12 +3991,12 @@ if (!is.null(trt_df)) {
 cat("\nPillar 5 complete.\n\n")
 
 ## =============================================================================
-##  PILLAR 6: EXTENDED COMPOSITION ANALYSIS
+##  PILLAR 6: COMPOSITION ANALYSIS
 ## =============================================================================
 
 cat("\n")
 cat("═══════════════════════════════════════════════════════════════\n")
-cat("  PILLAR 6: Extended Composition Analysis\n")
+cat("  PILLAR 6: Composition Analysis\n")
 cat("═══════════════════════════════════════════════════════════════\n\n")
 
 ## ── Install any missing packages ────────────────────────────────────────────
@@ -3928,7 +4016,7 @@ dir.create("figures/P1_composition", recursive = TRUE, showWarnings = FALSE)
 ## ─────────────────────────────────────────────────────────────────────────────
 
 ## Phylum palette — 10 vivid + grey "Other"
-## Phylum colors from Theme_constants.R
+## Phylum colors from theme_constants.r
 phylum_colors_vivid <- PAL$phylum
 TOP_PHYLA_COLS      <- PAL$phylum
 
@@ -4089,7 +4177,7 @@ genus_pal_21 <- c(
 cat("S6 helpers defined.\n\n")
 
 ## ─────────────────────────────────────────────────────────────────────────────
-## 6a. FIXED PHYLUM BARPLOTS (vivid palette, guaranteed 100%)
+## 6a. PHYLUM BARPLOTS (vivid palette)
 ## ─────────────────────────────────────────────────────────────────────────────
 cat("── 6a. Phylum barplots (fixed) ──\n")
 
@@ -4127,15 +4215,14 @@ p_phy_sample <- ggplot(phy_long,
         legend.key.size = unit(0.4, "cm")) +
   labs(x = "Samples ordered by Treatment → Harvest → Genotype",
        y = "Relative abundance",
-       title = sprintf("Phylum composition — per sample (top %d; 100%% guaranteed)",
+       title = sprintf("Phylum composition — per sample",
                        length(top_phy)))
 save_fig(p_phy_sample, "figures/P1_composition/phylum_barplot_per_sample",
          w = 14, h = 6)
 
-## ── Group-averaged treatment × genotype × timepoint ───────────────
-## Normalize within each group after averaging to guarantee exact 100%.
+## ── Fig 6a-ii  Group-averaged treatment × genotype × timepoint ───────────────
 phy_grp <- phy_long %>%
-  filter(trait %in% c("Resistance", "Susceptible")) %>%
+  filter(trait %in% c("Resistant", "Susceptible")) %>%
   group_by(treatment, trait, harvest, harvest_num, Taxon) %>%
   summarise(Abundance = mean(Abundance), .groups = "drop") %>%
   group_by(treatment, trait, harvest) %>%
@@ -4143,21 +4230,20 @@ phy_grp <- phy_long %>%
   ungroup()
 
 p_phy_grp <- ggplot(phy_grp,
-                    aes(x = harvest, y = Abundance, fill = Taxon)) +
+                    aes(x = harvest_num, y = Abundance, fill = Taxon)) +
   geom_bar(stat = "identity", position = "stack", width = 0.85) +
   facet_grid(treatment ~ trait) +
   scale_fill_manual(values = phy_col_map, name = "Phylum") +
+  scale_x_continuous(breaks = c(0,2,3,4,5,6)) +
   scale_y_continuous(labels = scales::percent_format(), expand = c(0, 0)) +
   theme_pub(BASE_SIZE - 2) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.key.size = unit(0.4, "cm")) +
-  labs(x = "Harvest", y = "Relative abundance",
-       title = "Phylum composition: treatment × genotype × timepoint",
-       subtitle = "Group means re-normalised to 100%")
-save_fig(p_phy_grp, "figures/P1_composition/phylum_barplot_trt_geno_time_FIXED",
+  theme(legend.key.size = unit(0.4, "cm")) +
+  labs(x = "Day", y = "Relative abundance",
+       title = "Phylum composition: treatment × genotype × timepoint")
+save_fig(p_phy_grp, "figures/P1_composition/phylum_barplot_trt_geno_time",
          w = 12, h = 8)
 
-## ── Treatment only ───────────────────────────────────────────────
+## ── Fig 6a-iii  Treatment only ───────────────────────────────────────────────
 phy_trt_grp <- phy_long %>%
   group_by(treatment, harvest, harvest_num, Taxon) %>%
   summarise(Abundance = mean(Abundance), .groups = "drop") %>%
@@ -4166,23 +4252,22 @@ phy_trt_grp <- phy_long %>%
   ungroup()
 
 p_phy_trt <- ggplot(phy_trt_grp,
-                    aes(x = harvest, y = Abundance, fill = Taxon)) +
+                    aes(x = harvest_num, y = Abundance, fill = Taxon)) +
   geom_bar(stat = "identity", position = "stack", width = 0.85) +
   facet_wrap(~ treatment) +
   scale_fill_manual(values = phy_col_map, name = "Phylum") +
+  scale_x_continuous(breaks = c(0,2,3,4,5,6)) +
   scale_y_continuous(labels = scales::percent_format(), expand = c(0, 0)) +
   theme_pub() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.key.size = unit(0.4, "cm")) +
-  labs(x = "Harvest", y = "Relative abundance",
-       title = "Phylum composition by treatment",
-       subtitle = "Group means re-normalised to 100%")
-save_fig(p_phy_trt, "figures/P1_composition/phylum_barplot_treatment_FIXED",
+  theme(legend.key.size = unit(0.4, "cm")) +
+  labs(x = "Day", y = "Relative abundance",
+       title = "Phylum composition by treatment")
+save_fig(p_phy_trt, "figures/P1_composition/phylum_barplot_treatment",
          w = 10, h = 6)
 
 ## Save phylum abundance table
 phy_tbl <- phy_long %>%
-  filter(trait %in% c("Resistance", "Susceptible")) %>%
+  filter(trait %in% c("Resistant", "Susceptible")) %>%
   group_by(treatment, trait, harvest, Taxon) %>%
   summarise(mean_abundance = mean(Abundance),
             se = sd(Abundance) / sqrt(n()),
@@ -4212,7 +4297,7 @@ gen_sample_order <- gen_long %>%
   pull(Sample)
 gen_long$Sample <- factor(gen_long$Sample, levels = gen_sample_order)
 
-## ──  Per-sample ────────────────────────────────────────────────────
+## ── Fig 6b-i  Per-sample ────────────────────────────────────────────────────
 p_gen_sample <- ggplot(gen_long,
                        aes(x = Sample, y = Abundance, fill = Taxon)) +
   geom_bar(stat = "identity", position = "fill", width = 1, colour = NA) +
@@ -4227,13 +4312,13 @@ p_gen_sample <- ggplot(gen_long,
         legend.text  = element_text(size = 8, face = "italic")) +
   labs(x = "Samples ordered by Treatment → Harvest → Genotype",
        y = "Relative abundance",
-       title = "Genus composition — per sample (top 20; 100% guaranteed)")
+       title = "Genus composition — per sample")
 save_fig(p_gen_sample, "figures/P1_composition/genus_barplot_per_sample",
          w = 14, h = 6)
 
-## ──  Group average: treatment × genotype (pooled time) ─────────────
+## ── Fig 6b-ii  Group average: treatment × genotype (pooled time) ─────────────
 gen_grp_tg <- gen_long %>%
-  filter(trait %in% c("Resistance", "Susceptible")) %>%
+  filter(trait %in% c("Resistant", "Susceptible")) %>%
   group_by(treatment, trait, Taxon) %>%
   summarise(Abundance = mean(Abundance), .groups = "drop") %>%
   group_by(treatment, trait) %>%
@@ -4250,14 +4335,13 @@ p_gen_tg <- ggplot(gen_grp_tg,
   theme(legend.text     = element_text(size = 8, face = "italic"),
         legend.key.size = unit(0.35, "cm")) +
   labs(x = "Treatment × Genotype", y = "Relative abundance",
-       title = "Genus composition by treatment × genotype",
-       subtitle = "Means re-normalised to 100% — top 20 genera")
+       title = "Genus composition by treatment × genotype")
 save_fig(p_gen_tg, "figures/P1_composition/genus_barplot_trt_geno",
          w = 10, h = 7)
 
-## ──  Group average: treatment × genotype × timepoint ──────────────
+## ── Fig 6b-iii  Group average: treatment × genotype × timepoint ──────────────
 gen_grp_tt <- gen_long %>%
-  filter(trait %in% c("Resistance", "Susceptible")) %>%
+  filter(trait %in% c("Resistant", "Susceptible")) %>%
   group_by(treatment, trait, harvest, harvest_num, Taxon) %>%
   summarise(Abundance = mean(Abundance), .groups = "drop") %>%
   group_by(treatment, trait, harvest) %>%
@@ -4265,24 +4349,23 @@ gen_grp_tt <- gen_long %>%
   ungroup()
 
 p_gen_tt <- ggplot(gen_grp_tt,
-                   aes(x = harvest, y = Abundance, fill = Taxon)) +
+                   aes(x = harvest_num, y = Abundance, fill = Taxon)) +
   geom_bar(stat = "identity", position = "stack", width = 0.85) +
   facet_grid(trait ~ treatment) +
   scale_fill_manual(values = gen_col_map, name = "Genus") +
+  scale_x_continuous(breaks = c(0,2,3,4,5,6)) +
   scale_y_continuous(labels = scales::percent_format(), expand = c(0, 0)) +
   theme_pub(BASE_SIZE - 2) +
-  theme(axis.text.x     = element_text(angle = 45, hjust = 1),
-        legend.text     = element_text(size = 8, face = "italic"),
+  theme(legend.text     = element_text(size = 8, face = "italic"),
         legend.key.size = unit(0.35, "cm")) +
-  labs(x = "Harvest", y = "Relative abundance",
-       title = "Genus composition: treatment × genotype × timepoint",
-       subtitle = "Top 20 genera, means re-normalised to 100%")
+  labs(x = "Day", y = "Relative abundance",
+       title = "Genus composition: treatment × genotype × timepoint")
 save_fig(p_gen_tt, "figures/P1_composition/genus_barplot_trt_geno_time",
          w = 12, h = 8)
 
 ## Save genus abundance table
 gen_tbl <- gen_long %>%
-  filter(trait %in% c("Resistance", "Susceptible")) %>%
+  filter(trait %in% c("Resistant", "Susceptible")) %>%
   group_by(treatment, trait, harvest, Taxon) %>%
   summarise(mean_abundance = mean(Abundance),
             se = sd(Abundance) / sqrt(n()),
@@ -4372,7 +4455,7 @@ cat("── 6d. Venn diagrams ──\n")
 
 ## Restrict to planted genotype samples for genotype Venns
 ps_pl_gen <- subset_samples(ps_planted,
-                            trait %in% c("Resistance", "Susceptible"))
+                            trait %in% c("Resistant", "Susceptible"))
 ps_pl_gen <- prune_taxa(taxa_sums(ps_pl_gen) > 0, ps_pl_gen)
 
 ## ── 2-set: Drought vs Watered ────────────────────────────────────────────────
@@ -4404,28 +4487,28 @@ if (.has_venn) {
     save_fig(p_venn_trt, "figures/P1_composition/venn_ASV_treatment", w = ISME_SINGLE_W, h = 5)
 }
 
-## ── 2-set: Resistance vs Susceptible ─────────────────────────────────────────
+## ── 2-set: Resistant vs Susceptible ─────────────────────────────────────────
 venn_gen <- list(
-  Resistance  = .get_present_asvs(ps_pl_gen, "trait", "Resistance"),
+  Resistant  = .get_present_asvs(ps_pl_gen, "trait", "Resistant"),
   Susceptible = .get_present_asvs(ps_pl_gen, "trait", "Susceptible")
 )
 venn_gen_sum <- data.frame(
-  Resistance_only  = length(setdiff(venn_gen$Resistance, venn_gen$Susceptible)),
-  Susceptible_only = length(setdiff(venn_gen$Susceptible, venn_gen$Resistance)),
-  Shared           = length(intersect(venn_gen$Resistance, venn_gen$Susceptible))
+  Resistant_only  = length(setdiff(venn_gen$Resistant, venn_gen$Susceptible)),
+  Susceptible_only = length(setdiff(venn_gen$Susceptible, venn_gen$Resistant)),
+  Shared           = length(intersect(venn_gen$Resistant, venn_gen$Susceptible))
 )
 write.csv(venn_gen_sum, "tables/P1_composition/venn_ASV_genotype.csv", row.names = FALSE)
-cat(sprintf("  ASV Venn (genotype): Resistance-only=%d, Susceptible-only=%d, Shared=%d\n",
-            venn_gen_sum$Resistance_only, venn_gen_sum$Susceptible_only,
+cat(sprintf("  ASV Venn (genotype): Resistant-only=%d, Susceptible-only=%d, Shared=%d\n",
+            venn_gen_sum$Resistant_only, venn_gen_sum$Susceptible_only,
             venn_gen_sum$Shared))
 
 if (.has_venn) {
   p_venn_gen <- tryCatch({
     ggVennDiagram(venn_gen, label_alpha = 0) +
-      scale_fill_gradient(low = "#FFFFFF", high = PAL$genotype[["Resistance"]]) +
-      labs(title   = "ASV sharing: Resistance vs Susceptible",
-           subtitle = sprintf("Resistance-only: %d | Shared: %d | Susceptible-only: %d",
-                              venn_gen_sum$Resistance_only, venn_gen_sum$Shared,
+      scale_fill_gradient(low = "#FFFFFF", high = PAL$genotype[["Resistant"]]) +
+      labs(title   = "ASV sharing: Resistant vs Susceptible",
+           subtitle = sprintf("Resistant-only: %d | Shared: %d | Susceptible-only: %d",
+                              venn_gen_sum$Resistant_only, venn_gen_sum$Shared,
                               venn_gen_sum$Susceptible_only)) +
       theme(legend.position = "none")
   }, error = function(e) { cat("  Venn error:", e$message, "\n"); NULL })
@@ -4439,8 +4522,8 @@ meta_4$trt_geno <- paste(as.character(meta_4$treatment),
                           as.character(meta_4$trait), sep = "_")
 
 venn_4set <- lapply(
-  c("Drought_Resistance", "Drought_Susceptible",
-    "Watered_Resistance",  "Watered_Susceptible"),
+  c("Drought_Resistant", "Drought_Susceptible",
+    "Watered_Resistant",  "Watered_Susceptible"),
   function(g) {
     s <- rownames(meta_4)[meta_4$trt_geno == g]
     if (length(s) == 0) return(character(0))
@@ -4508,13 +4591,13 @@ CORE_PREV <- 0.80
 
 core_drought <- .get_core(ps_planted, "treatment", "Drought",    CORE_PREV)
 core_watered <- .get_core(ps_planted, "treatment", "Watered",    CORE_PREV)
-core_resist  <- .get_core(ps_pl_gen,  "trait",     "Resistance", CORE_PREV)
+core_resist  <- .get_core(ps_pl_gen,  "trait",     "Resistant", CORE_PREV)
 core_suscept <- .get_core(ps_pl_gen,  "trait",     "Susceptible",CORE_PREV)
 
 for (g_info in list(
     list(obj = core_drought, nm = "Drought"),
     list(obj = core_watered, nm = "Watered"),
-    list(obj = core_resist,  nm = "Resistance"),
+    list(obj = core_resist,  nm = "Resistant"),
     list(obj = core_suscept, nm = "Susceptible"))) {
   n <- if (is.null(g_info$obj)) 0 else nrow(g_info$obj)
   cat(sprintf("  Core ASVs (%s, >=%.0f%%): %d\n",
@@ -4561,14 +4644,14 @@ if (!is.null(core_drought) && !is.null(core_watered)) {
 
 ## ── Core Venn: genotype ──────────────────────────────────────────────────────
 if (!is.null(core_resist) && !is.null(core_suscept)) {
-  venn_core_gen <- list(Resistance  = core_resist$ASV,
+  venn_core_gen <- list(Resistant  = core_resist$ASV,
                         Susceptible = core_suscept$ASV)
   core_gen_sum <- data.frame(
-    Resistance_core_only  = length(setdiff(venn_core_gen$Resistance,
+    Resistant_core_only  = length(setdiff(venn_core_gen$Resistant,
                                            venn_core_gen$Susceptible)),
     Susceptible_core_only = length(setdiff(venn_core_gen$Susceptible,
-                                           venn_core_gen$Resistance)),
-    Shared_core           = length(intersect(venn_core_gen$Resistance,
+                                           venn_core_gen$Resistant)),
+    Shared_core           = length(intersect(venn_core_gen$Resistant,
                                              venn_core_gen$Susceptible))
   )
   write.csv(core_gen_sum, "tables/P1_composition/core_venn_genotype.csv", row.names = FALSE)
@@ -4577,8 +4660,8 @@ if (!is.null(core_resist) && !is.null(core_suscept)) {
   if (.has_venn && sum(sapply(venn_core_gen, length)) > 0) {
     p_core_gen <- tryCatch({
       ggVennDiagram(venn_core_gen, label_alpha = 0) +
-        scale_fill_gradient(low = "#FFFFFF", high = PAL$genotype[["Resistance"]]) +
-        labs(title    = sprintf("Core microbiome (>=%.0f%% prevalence): Resistance vs Susceptible",
+        scale_fill_gradient(low = "#FFFFFF", high = PAL$genotype[["Resistant"]]) +
+        labs(title    = sprintf("Core microbiome (>=%.0f%% prevalence): Resistant vs Susceptible",
                                 CORE_PREV * 100),
              subtitle = "Planted samples only") +
         theme(legend.position = "none")
@@ -4636,7 +4719,7 @@ cat("Core microbiome analysis complete.\n\n")
 ## PILLAR 6 COMPLETE
 ## ─────────────────────────────────────────────────────────────────────────────
 cat("═══════════════════════════════════════════════════════════════\n")
-cat("  PILLAR 6 COMPLETE — Extended Composition Analysis\n")
+cat("  PILLAR 6 COMPLETE — Composition Analysis\n")
 cat("═══════════════════════════════════════════════════════════════\n")
 cat(sprintf("  Figures saved to: figures/P1_composition/ (%d files)\n",
             length(list.files("figures/P1_composition",
@@ -4877,7 +4960,7 @@ rm(.net_w2); gc(verbose=FALSE)
 ## ─────────────────────────────────────────────────────────────────────────────
 cat("\n── 7B: SPIEC-EASI genotype networks ──\n")
 
-.res_ids <- .meta_p$sample_id[.meta_p$trait == "Resistance"  & .meta_p$condition == "Planted"]
+.res_ids <- .meta_p$sample_id[.meta_p$trait == "Resistant"  & .meta_p$condition == "Planted"]
 .sus_ids <- .meta_p$sample_id[.meta_p$trait == "Susceptible" & .meta_p$condition == "Planted"]
 cat(sprintf("  Resistant n=%d | Susceptible n=%d\n", length(.res_ids), length(.sus_ids)))
 
@@ -5174,7 +5257,7 @@ cat("\n── 7E: Network figures ──\n")
 .plot_zipi <- function(kdf, title_str) {
   kdf$Phylum[is.na(kdf$Phylum) | trimws(kdf$Phylum)==""] <- "Unknown"
 
-  ## phyla absent from data are silently skipped
+  ## FIX 1 — vivid named phylum palette; phyla absent from data are silently skipped
   .phy_pal <- c(
     "Acidobacteriota"  = "#2196F3",
     "Actinomycetota"   = "#FF5722",
@@ -5217,11 +5300,11 @@ cat("\n── 7E: Network figures ──\n")
       ggplot2::aes(x=x,y=y,label=label,hjust=hjust,vjust=vjust),
       colour="grey50", size=8/.pt, fontface="italic", inherit.aes=FALSE) +
     ggplot2::facet_wrap(~Network, ncol=2) +
-    ## larger legend points for Phylum
+    ## FIX 1 — vivid palette + FIX 2 — larger legend points for Phylum
     ggplot2::scale_colour_manual(values=pal_cols, name="Phylum", drop=TRUE,
       guide=ggplot2::guide_legend(title="Phylum",
         override.aes=list(size=5), ncol=1)) +
-    ## larger point range in plot body + larger legend key sizes
+    ## FIX 2 + FIX 3 — larger point range in plot body + larger legend key sizes
     ggplot2::scale_size_continuous(name="Degree", range=c(2,8), breaks=c(5,15,30),
       guide=ggplot2::guide_legend(
         override.aes=list(size=c(4,6,9)))) +
@@ -5264,7 +5347,7 @@ cat("\n── 7E: Network figures ──\n")
     names_to="Metric", values_to="Value") %>%
     dplyr::mutate(Metric=dplyr::recode(Metric,
       Avg_degree="Average degree", Modularity="Modularity (Q)"))
-  ## Match manuscript palette from Theme_constants.R
+  ## FIX 2 — match manuscript palette from theme_constants.r
   COLS4 <- c(Drought="#B03A2E", Watered="#1A5276", Resistant="#1E8449", Susceptible="#D35400")
   ggplot2::ggplot(long, ggplot2::aes(Group, Value, fill=Group)) +
     ggplot2::geom_col(alpha=0.85, width=0.65) +
@@ -5279,7 +5362,7 @@ cat("\n── 7E: Network figures ──\n")
       strip.text       = ggplot2::element_text(size=11, face="bold"),
       plot.title       = ggplot2::element_text(size=12, face="bold"),
       plot.margin      = ggplot2::margin(4,4,4,4,"mm")) +
-    ## Remove uninformative y="Value"; facet strips already label each metric
+    ## FIX 1 — remove uninformative y="Value"; facet strips already label each metric
     ggplot2::labs(x=NULL,
       title="Network topology comparison",
       subtitle="SPIEC-EASI overall networks")
@@ -5381,24 +5464,6 @@ cat("\n── Cohesion analysis ──\n")
 
   .save_all(p_coh, "cohesion_plot", 9, 5)
 }
-
-## ╔═══════════════════════════════════════════════════════════════════════════╗
-## ║  WARNING: Per-day Spearman networks (n ≈ 6 per group per day) produce   ║
-## ║  unreliable edge estimates due to insufficient sample size. Spearman    ║
-## ║  correlations at n=6 have very wide confidence intervals and high        ║
-## ║  false-discovery rates even with |rho|>0.6 and p<0.05 filters.          ║
-## ║                                                                          ║
-## ║  The following outputs are retained for EXPLORATORY REFERENCE ONLY and  ║
-## ║  are NOT used in the manuscript or any supplementary figures:            ║
-## ║    - tables/network_topology_perday.csv                                  ║
-## ║    - tables/network_topology_perday_genotype.csv                         ║
-## ║    - tables/network_keystone_perday.csv                                  ║
-## ║    - tables/network_keystone_perday_genotype.csv                         ║
-## ║    - figures/P6_networks/keystone_temporal_heatmap*.{png,pdf,svg}        ║
-## ║    - figures/P6_networks/network_topology_temporal*.{png,pdf,svg}        ║
-## ║                                                                          ║
-## ║  Do NOT interpret these results quantitatively.       ║
-## ╚═══════════════════════════════════════════════════════════════════════════╝
 
 ## ─────────────────────────────────────────────────────────────────────────────
 ## 7C — PER-DAY SPEARMAN NETWORKS: TREATMENT
@@ -5533,13 +5598,13 @@ if (!file.exists(.topo_gd_path) || !file.exists(.kst_gd_path)) {
   meta_fg  <- data.frame(sample_id=rownames(sample_data(ps_fg)),
     as.data.frame(sample_data(ps_fg)), stringsAsFactors=FALSE)
   tax_fg   <- data.frame(tax_table(ps_fg), stringsAsFactors=FALSE)
-  GENOS    <- c("Resistance","Susceptible")
+  GENOS    <- c("Resistant","Susceptible")
 
   topo_gd_list <- list(); kst_gd_list <- list()
 
   for (day in c(0,2,3,4,5,6)) {
     for (geno in GENOS) {
-      geno_lbl <- ifelse(geno=="Resistance","Resistant","Susceptible")
+      geno_lbl <- ifelse(geno=="Resistant","Resistant","Susceptible")
       sids <- meta_fg$sample_id[
         (meta_fg$harvest == paste0("Day ",day) | meta_fg$Day == day) &
         meta_fg$trait == geno & meta_fg$condition == "Planted"]
@@ -5779,9 +5844,9 @@ cat("  PILLAR 8: Phylogenetic Signal (Blomberg K)\n")
 cat("═══════════════════════════════════════════════════════════════\n\n")
 
 .P7_DIR   <- "figures/P7_phylogenetic"
-.P7_CSV   <- "tables/P6_networks/P7_blomberg_k_results.csv"
-.P7_FIG_A <- file.path(.P7_DIR, "P7_blomberg_k_by_phylum.pdf")
-.P7_FIG_B <- file.path(.P7_DIR, "P7_LFC_distribution.pdf")
+.P7_CSV   <- "tables/P6_networks/blomberg_k_results.csv"
+.P7_FIG_A <- file.path(.P7_DIR, "blomberg_k_by_phylum.pdf")
+.P7_FIG_B <- file.path(.P7_DIR, "LFC_distribution.pdf")
 
 dir.create(.P7_DIR, recursive = TRUE, showWarnings = FALSE)
 
@@ -5941,7 +6006,7 @@ cat("  K results summary:\n")
 print(.k_res[, c("Phylum","K","p","n_taxa","sig")], row.names = FALSE)
 cat("\n")
 
-## ── 8E: Horizontal K bar chart ─────────────────────────────────────
+## ── 8E: Panel A — horizontal K bar chart ─────────────────────────────────────
 cat("── Panel A: Blomberg K by phylum ──\n")
 
 .k_plot <- .k_res[!is.na(.k_res$K), ]
@@ -5970,14 +6035,14 @@ p_k_bar <- ggplot(.k_plot, aes(x = K, y = Phylum, fill = sig)) +
        title    = "Phylogenetic signal of drought enrichment by phylum",
        subtitle = "K > 1 = stronger than Brownian motion; permutation p-values, 999 replicates")
 
-save_fig(p_k_bar, file.path(.P7_DIR, "P7_blomberg_k_by_phylum"),
+save_fig(p_k_bar, file.path(.P7_DIR, "blomberg_k_by_phylum"),
          w = ISME_DOUBLE_W * 0.75, h = 5)
-cat(sprintf("  P7_blomberg_k_by_phylum  PDF %.0fKB  PNG %.0fKB  SVG %.0fKB\n",
-    file.info(file.path(.P7_DIR,"P7_blomberg_k_by_phylum.pdf"))$size/1e3,
-    file.info(file.path(.P7_DIR,"P7_blomberg_k_by_phylum.png"))$size/1e3,
-    file.info(file.path(.P7_DIR,"P7_blomberg_k_by_phylum.svg"))$size/1e3))
+cat(sprintf("  blomberg_k_by_phylum  PDF %.0fKB  PNG %.0fKB  SVG %.0fKB\n",
+    file.info(file.path(.P7_DIR,"blomberg_k_by_phylum.pdf"))$size/1e3,
+    file.info(file.path(.P7_DIR,"blomberg_k_by_phylum.png"))$size/1e3,
+    file.info(file.path(.P7_DIR,"blomberg_k_by_phylum.svg"))$size/1e3))
 
-## ── 8F: LFC violin: Patescibacteria vs all other phyla ─────────────
+## ── 8F: Panel B — LFC violin: Patescibacteria vs all other phyla ─────────────
 cat("── Panel B: LFC distribution — Patescibacteria vs others ──\n")
 
 ## Build LFC data frame — merge tax annotation with LFC from ANCOMBC2
@@ -6042,18 +6107,19 @@ if (!is.null(ancom_b)) {
              "Patescibacteria (n=%d ASVs) show strong phylogenetic clustering",
              sum(lfc_df$Group == "Patescibacteria")))
 
-    save_fig(p_lfc_viol, file.path(.P7_DIR, "P7_LFC_distribution"),
+    save_fig(p_lfc_viol, file.path(.P7_DIR, "LFC_distribution"),
              w = ISME_SINGLE_W * 1.4, h = 5)
-    cat(sprintf("  P7_LFC_distribution  PDF %.0fKB  PNG %.0fKB  SVG %.0fKB\n",
-        file.info(file.path(.P7_DIR,"P7_LFC_distribution.pdf"))$size/1e3,
-        file.info(file.path(.P7_DIR,"P7_LFC_distribution.png"))$size/1e3,
-        file.info(file.path(.P7_DIR,"P7_LFC_distribution.svg"))$size/1e3))
+    cat(sprintf("  LFC_distribution  PDF %.0fKB  PNG %.0fKB  SVG %.0fKB\n",
+        file.info(file.path(.P7_DIR,"LFC_distribution.pdf"))$size/1e3,
+        file.info(file.path(.P7_DIR,"LFC_distribution.png"))$size/1e3,
+        file.info(file.path(.P7_DIR,"LFC_distribution.svg"))$size/1e3))
   } else {
     cat("  [P7B] taxonomy table unavailable — skipping LFC violin\n")
   }
 } else {
   cat("  [P7B] ANCOMBC2_treatment.csv unavailable — skipping LFC violin\n")
 }
+
 
 ## ── Summary ──────────────────────────────────────────────────────────────────
 cat("\n═══════════════════════════════════════════════════════════════\n")
@@ -6065,4 +6131,54 @@ cat(sprintf("  Key result: Patescibacteria K=%.3f, p=%.3f\n",
     .k_res$K[.k_res$Phylum == "Patescibacteria"],
     .k_res$p[.k_res$Phylum == "Patescibacteria"]))
 cat("═══════════════════════════════════════════════════════════════\n\n")
+
+## =============================================================================
+##  FINAL SUMMARY
+## =============================================================================
+
+cat("═══════════════════════════════════════════════════════════════\n")
+cat("  PIPELINE COMPLETE\n")
+cat("═══════════════════════════════════════════════════════════════\n\n")
+
+summary_df <- data.frame(
+  Finding = c(
+    "Samples (filtered)", "ASVs (filtered)", "Rarefaction depth",
+    "PERMANOVA: Treatment R²", "PERMANOVA: Genotype R²", "PERMANOVA: Time R²",
+    "PERMANOVA: Condition R²", "Residual variance (%)",
+    "Mean turnover proportion",
+    "DA ASVs (treatment)", "DA ASVs (genotype)",
+    "Assembly: Deterministic %", "Assembly: Stochastic %",
+    "Assembly: Dispersal Limitation (Drought)", "Assembly: Homogenizing Dispersal (Drought)",
+    "Functional R² (treatment)", "Functional PERMANOVA p",
+    "Procrustes r (p-value)", "Mantel r (partial)",
+    "iCAMP chi-squared p",
+    "RF AUC (full — primary)", "RF AUC (top30 — exploratory)", "RF perm p (full)"
+  ),
+  Value = c(
+    nsamples(ps), ntaxa(ps), CONFIG$RAREFACTION_DEPTH,
+    round(perm_main$R2[1],4), round(perm_main$R2[2],4), round(perm_main$R2[3],4),
+    round(perm_cond$R2[1],4), round(residual_pct,1),
+    round(mean(beta_summary$mean_turn),3),
+    ifelse(exists("n_dr"), n_dr+n_wa, NA), ifelse(exists("n_res"), n_res+n_sus, NA),
+    ifelse(exists("deterministic_pct"), round(deterministic_pct*100,1), NA),
+    ifelse(exists("stochastic_pct"), round(stochastic_pct*100,1), NA),
+    ifelse(icamp_available, "29.5%", NA), ifelse(icamp_available, "7.0%", NA),
+    ifelse(exists("perm_ko"), round(perm_ko$R2[1],4), NA),
+    ifelse(exists("perm_ko"), round(perm_ko$`Pr(>F)`[1],4), NA),
+    ifelse(exists("procr"), sprintf("%.3f (p=%.3f %s)", procr_r, procr$signif,
+                                     ifelse(procr$signif<0.05,"*","NS")), NA),
+    ifelse(exists("mantel_p"), round(mantel_p$statistic,3), NA),
+    ifelse(exists("chi_test"), sprintf("%.2e", chi_test$p.value), NA),
+    round(auc_full,3), round(auc_red,3), round(perm_p,4)
+  ), stringsAsFactors=FALSE
+)
+write.csv(summary_df, "tables/P1_composition/pipeline_summary.csv", row.names=FALSE)
+cat("Summary:\n"); print(summary_df, right=FALSE)
+
+## List all outputs
+cat("\n\nOutput files:\n")
+cat("Figures:", length(list.files("figures", recursive=TRUE, pattern="\\.(pdf|png)$")), "files\n")
+cat("Tables:", length(list.files("tables", pattern="\\.csv$", recursive=TRUE)), "files\n")
+
+writeLines(capture.output(sessionInfo()), "tables/P1_composition/sessionInfo.txt")
 cat("\n═══ Pipeline finished ═══\n")
