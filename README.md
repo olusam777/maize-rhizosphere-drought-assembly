@@ -8,19 +8,15 @@
 
 ## Overview
 
-This repository contains all analysis scripts and data files supporting the manuscript. The study examines how progressive drought stress restructures rhizosphere bacterial community assembly mechanisms and functional capacity in two maize genotypes (drought-resistant and drought-susceptible) across a six-day greenhouse experiment (n = 108 samples).
-
-**Central finding:** Drought doubles dispersal limitation (16.0% to 29.5%) and collapses homogenizing dispersal (22.4% to 7.0%), fragmenting rhizosphere metacommunity assembly, while plant growth-promoting functional capacity is maintained through functional redundancy.
-
+This repository contains all analysis scripts supporting the manuscript.
 ---
 
 ## Repository Structure
 
     maize-rhizosphere-drought-assembly/
     |
-    |-- drought_pipeline_v2.r          # Main analysis pipeline (~6,500 lines, 8 analytical pillars)
-    |-- figure_assembly.r              # Figure compilation script
-    |-- theme_constants.r              # Global color grammar and typography
+    |-- Analysis-pipeline.R          # Main analysis pipeline (~6,500 lines, 8 analytical pillars)
+    |-- Theme_constants.R              # Global color grammar and typography
     |
     |-- scripts/
     |   └-- CHPC/
@@ -35,25 +31,6 @@ This repository contains all analysis scripts and data files supporting the manu
     |
     |-- .gitignore
     └-- README.md
-
----
-
-## Pipeline Structure
-
-drought_pipeline_v2.r is organized into 8 analytical pillars executed sequentially:
-
-| Pillar | Analysis |
-|--------|----------|
-| 1 | Data import, quality filtering, rarefaction, alpha and beta diversity |
-| 2 | Community assembly mechanisms (iCAMP, βNTI, RC_bray) |
-| 3 | Differential abundance (ANCOM-BC2), functional profiling (PICRUSt2, FAPROTAX) |
-| 4 | Plant phenotype-microbiome coupling (Procrustes, Mantel) |
-| 5 | Predictive modelling (Random Forest) |
-| 6 | Extended community composition and core microbiome |
-| 7 | Co-occurrence network analysis (SPIEC-EASI, Zi-Pi keystone classification) |
-| 8 | Phylogenetic signal analysis and supplementary figure assembly |
-
-Estimated full pipeline runtime: 4-6 hours on a MacBook with 16 GB RAM. Computationally intensive steps (SPIEC-EASI x4, ANCOM-BC2 x5, Random Forest) are cached as RDS files — delete the relevant RDS file to force recomputation.
 
 ---
 
