@@ -1,6 +1,6 @@
 ## =============================================================================
 ## Global typography, colors and themes
-## Source this file at the top of all analysis and assembly scripts
+## Source this file at the top the analysis script
 ## =============================================================================
 
 suppressPackageStartupMessages({
@@ -61,7 +61,6 @@ ASSEMBLY_COLORS <- c(
 COL_ASSEMBLY <- ASSEMBLY_COLORS
 
 ## Dot-notation alias for iCAMP output column names — derived from ASSEMBLY_COLORS
-## so colours are guaranteed identical for the same process
 COL_ASSEMBLY_DOT <- setNames(
   ASSEMBLY_COLORS[c("Variable Selection", "Homogeneous Selection",
                     "Dispersal Limitation", "Homogenizing Dispersal",
@@ -115,10 +114,6 @@ PAL <- list(
 )
 
 ## ── Taxon name italics helper ─────────────────────────────────────────────────
-## Wraps genus/species names in markdown italics for use with ggtext
-## Usage: italicise_taxa(vector_of_names)
-## Returns character vector with *Name* markdown formatting
-## Non-genus names (phyla, classes etc.) are returned unchanged
 italicise_taxa <- function(x, rank = "genus") {
   ## Only italicise genus level and below
   ## Phylum, Class, Order, Family — NOT italicised by convention
@@ -168,8 +163,6 @@ theme_pub <- function(base_size = BASE_SIZE, legend_pos = "bottom") {
 }
 
 ## ── Save figure helper ────────────────────────────────────────────────────────
-## Saves PDF + PNG at 300 DPI using -calibrated dimensions
-## w and h are in inches (use SINGLE_W, DOUBLE_W constants)
 save_fig <- function(p, stem, w = DOUBLE_W, h = 5) {
   ggsave(paste0(stem, ".pdf"), p, width = w, height = h,
          device = cairo_pdf, units = "in")
@@ -189,4 +182,4 @@ sig_stars <- function(p) {
 cat("theme_constants.r loaded: Arial font, BASE_SIZE=", BASE_SIZE,
     ",  dimensions calibrated\n")
 
-## End of theme_constants.r
+## End of Theme_constants.r
