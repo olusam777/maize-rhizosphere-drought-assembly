@@ -15,7 +15,7 @@ This repository contains all analysis scripts supporting the manuscript.
 
     maize-rhizosphere-drought-assembly/
     |
-    |-- Analysis-pipeline.R          # Main analysis pipeline (~6,500 lines, 8 analytical pillars)
+    |-- Analysis-pipeline.R          # Main analysis pipeline 
     |-- Theme_constants.R              # Global color grammar and typography
     |
     |-- scripts/
